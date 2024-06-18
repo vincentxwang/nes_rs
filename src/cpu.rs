@@ -1,5 +1,7 @@
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
 
+use crate::opcodes::CPU_OPS_CODES;
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
@@ -23,7 +25,6 @@ pub struct CPU {
     pub program_counter: u16,
     memory: [u8; 0xFFFF]
 }
-
 
 impl CPU {
     pub fn new() -> Self {
@@ -147,28 +148,21 @@ impl CPU {
 
     pub fn run(&mut self) {
         loop {
-            let opscode = self.mem_read(self.program_counter);
+            let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
-            match opscode {
-                0xAA => self.tax(),
-                0xA9 => {
-                    self.lda(&AddressingMode::Immediate);
-                    self.program_counter += 1;
-                },
-                0xA5 => {
-                    self.lda(&AddressingMode::ZeroPage);
-                    self.program_counter += 1;
-                },
-                0xAD => {
-                    self.lda(&AddressingMode::Absolute);
-                    self.program_counter += 2; 
-                },
-                0xE8 => self.inx(),
-                0x00 => return,
-                _ => todo!()
+            let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect("Invalid code");
+
+            match opcode.op {
+                "LDA" => self.lda(&opcode.addressing_mode),
+                "TAX" => self.tax(),
+                "INX" => self.inx(),
+                "BRK" => return,
+                _ => panic!("Invalid code"),
             }
 
+            // -1 because we already incremented program_counter to account for the instruction
+            self.program_counter += (opcode.bytes - 1) as u16;
         }
     }
 }
@@ -197,11 +191,11 @@ mod test {
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
+
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
   
         assert_eq!(cpu.register_x, 0xc1)
     }
- 
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
