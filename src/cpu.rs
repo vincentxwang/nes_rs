@@ -114,6 +114,31 @@ impl CPU {
        self.run();
     }
 
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.register_a &= self.mem_read(addr);
+        self.update_zero_and_negative_flags(self.register_a); // Unsure... documentation is too vague
+    }
+
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.register_a ^= self.mem_read(addr);
+        self.update_zero_and_negative_flags(self.register_a); // Unsure... documentation is too vague
+    }
+
+    fn dec(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let val = self.mem_read(addr);
+
+        self.mem_write(addr, val.wrapping_sub(1));
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a);
+    }
+
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -122,8 +147,24 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let val = self.mem_read(addr);
+
+        self.register_a |= val;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn tax(&mut self) {
         self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let val = self.mem_read(addr);
+
+        self.mem_write(addr, val.wrapping_add(1));
         self.update_zero_and_negative_flags(self.register_x);
     }
 
@@ -154,10 +195,17 @@ impl CPU {
             let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect("Invalid code");
 
             match opcode.op {
-                "LDA" => self.lda(&opcode.addressing_mode),
-                "TAX" => self.tax(),
-                "INX" => self.inx(),
+                "AND" => self.and(&opcode.addressing_mode),
                 "BRK" => return,
+                "DEC" => self.dec(&opcode.addressing_mode),
+                "EOR" => self.eor(&opcode.addressing_mode),
+                "INC" => self.inc(&opcode.addressing_mode),
+                "INX" => self.inx(),
+                "LDA" => self.lda(&opcode.addressing_mode),
+                "ORA" => self.ora(&opcode.addressing_mode),
+                "NOP" => (),
+                "STA" => self.sta(&opcode.addressing_mode),
+                "TAX" => self.tax(),
                 _ => panic!("Invalid code"),
             }
 
@@ -216,5 +264,39 @@ mod test {
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
 
         assert_eq!(cpu.register_a, 0x55);
+    }
+    #[test]
+    fn test_lda_sta_dec_and() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xA9, 0b1010_0010,      // LDA
+            0x85, 0x87,             // STA, store 0x87 -> 0b1010_0010
+            0xC6, 0x87,             // DEC
+            0xC6, 0x87,             // DEC, register A now = 0b1010_0000
+            0x25, 0x87              // AND
+        ]);
+
+        assert_eq!(cpu.register_a, 0b1010_0000)
+    }
+    #[test]
+    fn test_lda_eor_and() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xA9, 0b0111_0110,      // LDA
+            0x49, 0b1010_1100,      // EOR, A = 0b1101_1010
+            0x29, 0b1010_1100,      // AND
+        ]);
+
+        assert_eq!(cpu.register_a, 0b1000_1000)
+    }
+    #[test]
+    fn test_inc_ora() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xE6, 0x26,             // INC
+            0x05, 0x26              // ORA
+        ]);
+
+        assert_eq!(cpu.register_a, 1)
     }
 }
