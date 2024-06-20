@@ -18,13 +18,30 @@ pub enum AddressingMode {
 }
 pub struct CPU {
     pub register_a: u8,
-    // status: u8 corresponds to `(empty) N V B D I Z C` flags in register P
+    // Status flags -- https://www.nesdev.org/wiki/Status_flags
+    // 7654 3210
+    // NV0B DIZC
+    // |||| ||||
+    // |||| |||+- Carry
+    // |||| ||+-- Zero
+    // |||| |+--- Interrupt Disable
+    // |||| +---- Decimal
+    // |||+------ (No CPU effect; see: the B flag)
+    // ||+------- (No CPU effect; always pushed as 0)
+    // |+-------- Overflow
+    // +--------- Negative
     pub status: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub program_counter: u16,
+    pub stack_pointer: u8,
     memory: [u8; 0xFFFF]
 }
+
+// Stack occupied 0x0100 -> 0x01FF
+const STACK: u16 = 0x0100;
+// STACK + STACK_RESET is "top" of stack
+const STACK_RESET: u8 = 0xfd;
 
 impl CPU {
     pub fn new() -> Self {
@@ -34,6 +51,7 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             program_counter: 0,
+            stack_pointer: 0,
             memory: [0; 0xFFFF],
         }
     }
@@ -114,6 +132,30 @@ impl CPU {
        self.run();
     }
 
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.mem_read((STACK as u16) + self.stack_pointer as u16)
+    }
+
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write((STACK as u16) + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1)
+    }
+
+    fn stack_push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
+    }
+
+    fn stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+
+        hi << 8 | lo
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
@@ -128,15 +170,35 @@ impl CPU {
 
     fn dec(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
-        let val = self.mem_read(addr);
+        let val = self.mem_read(addr).wrapping_sub(1);
 
-        self.mem_write(addr, val.wrapping_sub(1));
-        self.update_zero_and_negative_flags(self.register_x);
+        self.mem_write(addr, val);
+        self.update_zero_and_negative_flags(val);
+    }
+
+    fn dex(&mut self) {
+        self.register_x = self.register_x.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_x)
+    }
+
+    fn dey(&mut self) {
+        self.register_y = self.register_y.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_y)
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
+    }
+
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_y);
     }
 
     fn lda(&mut self, mode: &AddressingMode) {
@@ -146,6 +208,24 @@ impl CPU {
         self.register_a = val;
         self.update_zero_and_negative_flags(self.register_a);
     }
+
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let val = self.mem_read(addr);
+
+        self.register_x = val;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let val = self.mem_read(addr);
+
+        self.register_y = val;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
 
     fn ora(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
@@ -160,6 +240,26 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    fn tay(&mut self) {
+        self.register_y = self.register_a;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn tsx(&mut self) {
+        self.register_x = self.stack_pointer;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn txa(&mut self) {
+        self.register_a = self.register_x;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tya(&mut self) {
+        self.register_a = self.register_y;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
     fn inc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -171,6 +271,11 @@ impl CPU {
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn iny(&mut self) {
+        self.register_y = self.register_y.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -198,14 +303,26 @@ impl CPU {
                 "AND" => self.and(&opcode.addressing_mode),
                 "BRK" => return,
                 "DEC" => self.dec(&opcode.addressing_mode),
+                "DEX" => self.dex(),
+                "DEY" => self.dey(),
                 "EOR" => self.eor(&opcode.addressing_mode),
                 "INC" => self.inc(&opcode.addressing_mode),
                 "INX" => self.inx(),
+                "INY" => self.iny(),
                 "LDA" => self.lda(&opcode.addressing_mode),
+                "LDX" => self.ldx(&opcode.addressing_mode),
+                "LDY" => self.ldy(&opcode.addressing_mode),
                 "ORA" => self.ora(&opcode.addressing_mode),
                 "NOP" => (),
                 "STA" => self.sta(&opcode.addressing_mode),
+                "STX" => self.stx(&opcode.addressing_mode),
+                "STY" => self.sty(&opcode.addressing_mode),
                 "TAX" => self.tax(),
+                "TAY" => self.tay(),
+                "TSX" => self.tsx(),
+                "TXA" => self.txa(),
+                "TXS" => self.stack_pointer = self.register_x,
+                "TYA" => self.tya(),
                 _ => panic!("Invalid code"),
             }
 
@@ -251,7 +368,7 @@ mod test {
         // TAX
         // INX
         // INX
-        // nothing
+        // BRK
         cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 1)
