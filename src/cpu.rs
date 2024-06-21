@@ -16,6 +16,7 @@ pub enum AddressingMode {
    Absolute,
    Absolute_X,
    Absolute_Y,
+   Indirect,
    Indirect_X,
    Indirect_Y,
    NoneAddressing,
@@ -101,6 +102,9 @@ impl CPU {
                 deref
             }
             AddressingMode::NoneAddressing => {
+                panic!("mode {:?} is not supported", mode);
+            }
+            AddressingMode::Indirect => {
                 panic!("mode {:?} is not supported", mode);
             }
         }
@@ -243,6 +247,16 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read(addr);
+        let res = self.register_a & data;
+        self.status.set(CPUFlags::ZERO, res == 0);
+
+        self.status.set(CPUFlags::NEGATIVE, data & 0b10000000 > 0);
+        self.status.set(CPUFlags::OVERFLOW, data & 0b01000000 > 0);
+    }
+
     fn lsr(&mut self, mode: &AddressingMode) {
         let mut data;
         let addr = self.get_operand_address(mode);
@@ -251,11 +265,7 @@ impl CPU {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => data = self.mem_read(addr),
         }
-        if data & 1 == 1 {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
+        self.status.set(CPUFlags::CARRY, data & 1 == 1);
         data >>= 1;
         match mode {
             AddressingMode::NoneAddressing => self.register_a = data,
@@ -267,12 +277,7 @@ impl CPU {
     fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
-        if data <= compare_with {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
-
+        self.status.set(CPUFlags::CARRY,data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
@@ -288,6 +293,36 @@ impl CPU {
 
         self.mem_write(addr, val);
         self.update_zero_and_negative_flags(val);
+    }
+
+    fn jmp(&mut self, mode: &AddressingMode) {
+        let mem_address = self.mem_read_u16(self.program_counter);
+
+        match mode {
+            AddressingMode::Absolute => self.program_counter = mem_address,
+            AddressingMode::Indirect => {
+                let indirect_ref = if mem_address & 0x00FF == 0x00FF {
+                    let lo = self.mem_read(mem_address);
+                    let hi = self.mem_read(mem_address & 0xFF00);
+                    (hi as u16) << 8 | (lo as u16)
+                } else {
+                    self.mem_read_u16(mem_address)
+                };
+
+                self.program_counter = indirect_ref;
+            },
+            _ => {
+                panic!("Invalid mode {:?} in JMP", mode);
+            }
+        }
+        self.program_counter = mem_address;
+    }
+
+    fn jsr(&mut self) {
+        // not sure about the constant...
+        self.stack_push_u16(self.program_counter + 2 - 1);
+        let target_address = self.mem_read_u16(self.program_counter);
+        self.program_counter = target_address;
     }
 
     fn dex(&mut self) {
@@ -492,6 +527,17 @@ impl CPU {
         }
     }
 
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(jump as u16);
+
+            self.program_counter = jump_addr;
+        }
+    }
+
     fn rol(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let mut data;
@@ -546,16 +592,16 @@ impl CPU {
                 "ADC" => self.adc(&opcode.addressing_mode),
                 "AND" => self.and(&opcode.addressing_mode),
                 "ASL" => self.asl(&opcode.addressing_mode),
-                "BCC" => todo!(),
-                "BCS" => todo!(),
-                "BEQ" => todo!(),
-                "BIT" => todo!(),
-                "BMI" => todo!(),
-                "BNE" => todo!(),
-                "BPL" => todo!(),
+                "BCC" => self.branch(!self.status.contains(CPUFlags::CARRY)),
+                "BCS" => self.branch(self.status.contains(CPUFlags::CARRY)),
+                "BEQ" => self.branch(self.status.contains(CPUFlags::ZERO)),
+                "BIT" => self.bit(&opcode.addressing_mode),
+                "BMI" => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
+                "BNE" => self.branch(!self.status.contains(CPUFlags::ZERO)),
+                "BPL" => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
                 "BRK" => return,
-                "BVC" => todo!(),
-                "BVS" => todo!(),
+                "BVC" => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
+                "BVS" => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
                 "CLC" => self.status.remove(CPUFlags::CARRY),
                 "CLD" => self.status.remove(CPUFlags::DECIMAL_MODE),
                 "CLI" => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
@@ -570,8 +616,8 @@ impl CPU {
                 "INC" => self.inc(&opcode.addressing_mode),
                 "INX" => self.inx(),
                 "INY" => self.iny(),
-                "JMP" => todo!(),
-                "JSR" => todo!(),
+                "JMP" => self.jmp(&opcode.addressing_mode),
+                "JSR" => self.jsr(),
                 "LDA" => self.lda(&opcode.addressing_mode),
                 "LDX" => self.ldx(&opcode.addressing_mode),
                 "LDY" => self.ldy(&opcode.addressing_mode),
