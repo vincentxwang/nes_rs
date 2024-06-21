@@ -1,5 +1,5 @@
 use crate::cpu::AddressingMode;
-
+use std::collections::HashMap;
 pub struct OpCode {
     pub code: u8,
     pub op: &'static str,
@@ -201,4 +201,13 @@ lazy_static! {
 
         OpCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
 ];
+
+
+    pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {
+        let mut map = HashMap::new();
+        for cpuop in &*CPU_OPS_CODES {
+            map.insert(cpuop.code, cpuop);
+        }
+        map
+    };
 }
