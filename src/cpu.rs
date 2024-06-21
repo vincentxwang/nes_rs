@@ -1,5 +1,9 @@
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
 
+use std::ops::Add;
+
+use bitflags::Flags;
+
 use crate::opcodes::CPU_OPS_CODES;
 
 #[derive(Debug)]
@@ -171,6 +175,47 @@ impl CPU {
         hi << 8 | lo
     }
 
+    fn set_register_a(&mut self, value: u8) {
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+     /// note: ignoring decimal mode
+    /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+    fn add_to_register_a(&mut self, data: u8) {
+        let sum = self.register_a as u16
+            + data as u16
+            + (if self.status.contains(CPUFlags::CARRY) {
+                1
+            } else {
+                0
+            }) as u16;
+
+        let carry = sum > 0xff;
+
+        if carry {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+
+        let result = sum as u8;
+
+        if (data ^ result) & (result ^ self.register_a) & 0x80 != 0 {
+            self.status.insert(CPUFlags::OVERFLOW);
+        } else {
+            self.status.remove(CPUFlags::OVERFLOW)
+        }
+
+        self.set_register_a(result);
+    }
+
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_to_register_a(value);
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
@@ -196,6 +241,39 @@ impl CPU {
             _ => self.mem_write(addr, data),
         }
         self.update_zero_and_negative_flags(data);
+    }
+
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let mut data;
+        let addr = self.get_operand_address(mode);
+        // AddressingNone => Accumulator
+        match mode {
+            AddressingMode::NoneAddressing => data = self.register_a,
+            _ => data = self.mem_read(addr),
+        }
+        if data & 1 == 1 {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+        data >>= 1;
+        match mode {
+            AddressingMode::NoneAddressing => self.register_a = data,
+            _ => self.mem_write(addr, data),
+        }
+        self.update_zero_and_negative_flags(data);
+    }
+
+    fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read(addr);
+        if data <= compare_with {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+
+        self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
     fn eor(&mut self, mode: &AddressingMode) {
@@ -262,7 +340,6 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-
     fn ora(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -273,7 +350,67 @@ impl CPU {
 
     fn pla(&mut self) {
         let data = self.stack_pop();
-        self.register_a = data;
+        self.set_register_a(data);
+    }       
+
+    fn plp(&mut self) {
+        let data = self.stack_pop();
+        
+        if data & (1 << 0) != 0 {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+        
+        if data & (1 << 1) != 0 {
+            self.status.insert(CPUFlags::ZERO);
+        } else {
+            self.status.remove(CPUFlags::ZERO);
+        }
+        
+        if data & (1 << 2) != 0 {
+            self.status.insert(CPUFlags::INTERRUPT_DISABLE);
+        } else {
+            self.status.remove(CPUFlags::INTERRUPT_DISABLE);
+        }
+        
+        if data & (1 << 3) != 0 {
+            self.status.insert(CPUFlags::DECIMAL_MODE);
+        } else {
+            self.status.remove(CPUFlags::DECIMAL_MODE);
+        }
+        
+        // Bits 4 and 5 are not used or are specific to the break flag
+        if data & (1 << 4) != 0 {
+            self.status.insert(CPUFlags::BREAK);
+        } else {
+            self.status.remove(CPUFlags::BREAK);
+        }
+        
+        // BREAK2 is not used, but for completeness, handle it if needed
+        if data & (1 << 5) != 0 {
+            self.status.insert(CPUFlags::BREAK2);
+        } else {
+            self.status.remove(CPUFlags::BREAK2);
+        }
+        
+        if data & (1 << 6) != 0 {
+            self.status.insert(CPUFlags::OVERFLOW);
+        } else {
+            self.status.remove(CPUFlags::OVERFLOW);
+        }
+        
+        if data & (1 << 7) != 0 {
+            self.status.insert(CPUFlags::NEGATIVE);
+        } else {
+            self.status.remove(CPUFlags::NEGATIVE);
+        }
+    }   
+
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(&mode);
+        let data = self.mem_read(addr);
+        self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
     }
 
     fn tax(&mut self) {
@@ -319,6 +456,71 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    fn update_negative_flags(&mut self, result: u8) {
+        if result >> 7 == 1 {
+            self.status.insert(CPUFlags::NEGATIVE)
+        } else {
+            self.status.remove(CPUFlags::NEGATIVE)
+        }
+    }
+
+    fn ror(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data;
+        match mode {
+            AddressingMode::NoneAddressing => data = self.mem_read(addr),
+            _ => data = self.mem_read(addr),
+        }
+
+        let old_carry = self.status.contains(CPUFlags::CARRY);
+
+        if data & 1 == 1 {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+        data = data >> 1;
+        if old_carry {
+            data = data | 0b10000000;
+        }
+        match mode {
+            AddressingMode::NoneAddressing => self.add_to_register_a(data),
+            _ => {
+                self.mem_write(addr, data);
+                self.update_negative_flags(data);
+            },
+        }
+    }
+
+    fn rol(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data;
+        match mode {
+            AddressingMode::NoneAddressing => data = self.mem_read(addr),
+            _ => data = self.mem_read(addr),
+        }
+
+        let old_carry = self.status.contains(CPUFlags::CARRY);
+
+        if data >> 1 == 1 {
+            self.status.insert(CPUFlags::CARRY);
+        } else {
+            self.status.remove(CPUFlags::CARRY);
+        }
+        data = data << 1;
+        if old_carry {
+            data = data | 1;
+        }
+        match mode {
+            AddressingMode::NoneAddressing => self.add_to_register_a(data),
+            _ => {
+                self.mem_write(addr, data);
+                self.update_negative_flags(data);
+            },
+        }
+    }
+
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.status.insert(CPUFlags::ZERO); 
@@ -341,7 +543,7 @@ impl CPU {
             let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect("Invalid code");
 
             match opcode.op {
-                "ADC" => todo!(),
+                "ADC" => self.adc(&opcode.addressing_mode),
                 "AND" => self.and(&opcode.addressing_mode),
                 "ASL" => self.asl(&opcode.addressing_mode),
                 "BCC" => todo!(),
@@ -358,9 +560,9 @@ impl CPU {
                 "CLD" => self.status.remove(CPUFlags::DECIMAL_MODE),
                 "CLI" => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
                 "CLV" => self.status.remove(CPUFlags::OVERFLOW),
-                "CMP" => todo!(),
-                "CPX" => todo!(),
-                "CPY" => todo!(),
+                "CMP" => self.compare(&opcode.addressing_mode, self.register_a),
+                "CPX" => self.compare(&opcode.addressing_mode, self.register_x),
+                "CPY" => self.compare(&opcode.addressing_mode, self.register_y),
                 "DEC" => self.dec(&opcode.addressing_mode),
                 "DEX" => self.dex(),
                 "DEY" => self.dey(),
@@ -373,18 +575,21 @@ impl CPU {
                 "LDA" => self.lda(&opcode.addressing_mode),
                 "LDX" => self.ldx(&opcode.addressing_mode),
                 "LDY" => self.ldy(&opcode.addressing_mode),
-                "LSR" => todo!(),
+                "LSR" => self.lsr(&opcode.addressing_mode),
                 "NOP" => (),
                 "ORA" => self.ora(&opcode.addressing_mode),
-                "PHA" => todo!(),
-                "PHP" => todo!(),
-                "PLA" => self.register_a = self.stack_pop(),
-                "PLP" => todo!(), // what to do with breaks?
-                "ROL" => todo!(),
-                "ROR" => todo!(),
-                "RTI" => todo!(),
-                "RTS" => todo!(),
-                "SBC" => todo!(),
+                "PHA" => self.stack_push(self.register_a),
+                "PHP" => self.stack_push(self.status.bits()),
+                "PLA" => self.pla(),
+                "PLP" => self.plp(),
+                "ROL" => self.rol(&opcode.addressing_mode),
+                "ROR" => self.ror(&opcode.addressing_mode),
+                "RTI" => {
+                    self.plp();
+                    self.program_counter = self.stack_pop_u16();
+                },
+                "RTS" => self.program_counter = self.stack_pop_u16().wrapping_sub(1), // + 1?
+                "SBC" => self.sbc(&opcode.addressing_mode),
                 "SEC" => self.status.insert(CPUFlags::CARRY),
                 "SED" => self.status.insert(CPUFlags::DECIMAL_MODE),
                 "SEI" => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
