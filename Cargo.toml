@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.5.0"
+cargo-llvm-cov = "0.6.10"
 lazy_static = "1.4.0"
