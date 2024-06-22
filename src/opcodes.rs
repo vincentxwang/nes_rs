@@ -11,11 +11,11 @@ pub struct OpCode {
 impl OpCode {
     pub fn new(code: u8, op: &'static str, bytes: u8, cycles: u8, addressing_mode: AddressingMode) -> Self {
         OpCode {
-            code: code,
-            op: op,
-            bytes: bytes,
-            cycles: cycles,
-            addressing_mode: addressing_mode,
+            code,
+            op,
+            bytes,
+            cycles,
+            addressing_mode,
         }
     }
 }

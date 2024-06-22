@@ -1,6 +1,5 @@
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
 
-use std::ops::Add;
 
 use bitflags::Flags;
 
@@ -61,6 +60,12 @@ const STACK: u16 = 0x0100;
 // STACK + STACK_RESET is "top" of stack
 const STACK_RESET: u8 = 0xfd;
 
+impl Default for CPU {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CPU {
     pub fn new() -> Self {
         CPU {
@@ -87,7 +92,7 @@ impl CPU {
             AddressingMode::Indirect_X => {
                 let base = self.mem_read(self.program_counter);
  
-                let ptr: u8 = (base as u8).wrapping_add(self.register_x);
+                let ptr: u8 = base.wrapping_add(self.register_x);
                 let lo = self.mem_read(ptr as u16);
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
                 (hi as u16) << 8 | (lo as u16)
@@ -96,10 +101,10 @@ impl CPU {
                 let base = self.mem_read(self.program_counter);
  
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
-                let deref = deref_base.wrapping_add(self.register_y as u16);
-                deref
+                
+                deref_base.wrapping_add(self.register_y as u16)
             }
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
@@ -123,7 +128,7 @@ impl CPU {
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
-        (hi << 8) | (lo as u16)
+        (hi << 8) | lo
     }
  
     fn mem_write_u16(&mut self, pos: u16, data: u16) {
@@ -157,11 +162,11 @@ impl CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.mem_read((STACK as u16) + self.stack_pointer as u16)
+        self.mem_read(STACK + self.stack_pointer as u16)
     }
 
     fn stack_push(&mut self, data: u8) {
-        self.mem_write((STACK as u16) + self.stack_pointer as u16, data);
+        self.mem_write(STACK + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
@@ -443,7 +448,7 @@ impl CPU {
     }   
 
     fn sbc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(&mode);
+        let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
     }
@@ -514,9 +519,9 @@ impl CPU {
         } else {
             self.status.remove(CPUFlags::CARRY);
         }
-        data = data >> 1;
+        data >>= 1;
         if old_carry {
-            data = data | 0b10000000;
+            data |= 0b10000000;
         }
         match mode {
             AddressingMode::NoneAddressing => self.add_to_register_a(data),
@@ -553,9 +558,9 @@ impl CPU {
         } else {
             self.status.remove(CPUFlags::CARRY);
         }
-        data = data << 1;
+        data <<= 1;
         if old_carry {
-            data = data | 1;
+            data |= 1;
         }
         match mode {
             AddressingMode::NoneAddressing => self.add_to_register_a(data),
