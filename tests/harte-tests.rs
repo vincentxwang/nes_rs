@@ -1,64 +1,11 @@
+// The following test cases are taken from https://github.com/SingleStepTests/ProcessorTests/tree/main/nes6502 as of 
+// 6/22/2024. This setup assumes the following file naming: tests/harte_test_suite/nes6502/v1/[OPCODE].json.
+
 use serde_json::{Result, Value};
 use nes_rs::cpu::CPU;
 
-
-fn process_instructions(input: &str) -> Vec<u8> {
-    input
-        .split_whitespace() // Split by whitespace
-        .filter_map(|hex_str| u8::from_str_radix(hex_str, 16).ok()) // Parse each hex string to u8
-        .collect() // Collect into Vec<u8>
-}
-
-#[test]
-fn untyped_example() -> Result<()> {
-    // Some JSON input data as a &str. Maybe this comes from the user.
-
-    let data = r#"
-    {
-        "name": "b1 28 b5",
-        "initial": {
-            "pc": 59082,
-            "s": 39,
-            "a": 57,
-            "x": 33,
-            "y": 174,
-            "p": 96,
-            "ram": [
-                [59082, 177],
-                [59083, 40],
-                [59084, 181],
-                [40, 160],
-                [41, 233],
-                [59982, 119]
-            ]
-        },
-        "final": {
-            "pc": 59084,
-            "s": 39,
-            "a": 119,
-            "x": 33,
-            "y": 174,
-            "p": 96,
-            "ram": [
-                [40, 160],
-                [41, 233],
-                [59082, 177],
-                [59083, 40],
-                [59084, 181],
-                [59982, 119]
-            ]
-        },
-        "cycles": [
-            [59082, 177, "read"],
-            [59083, 40, "read"],
-            [40, 160, "read"],
-            [41, 233, "read"],
-            [59083, 40, "read"],
-            [59982, 119, "read"]
-        ]
-    }"#;
-
-    let v: Value = serde_json::from_str(data)?;
+fn run_harte_test(v: &Value) -> Result<()> {
+    // let v: Value = serde_json::from_str(data)?;
 
     let mut cpu = CPU::new();
 
@@ -77,14 +24,38 @@ fn untyped_example() -> Result<()> {
         cpu.mem_write(addr, data);
     }
 
-    let program = process_instructions(v["name"].as_str().unwrap());
+    // let program = process_instructions(v["name"].as_str().unwrap());
 
-    cpu.load(program);
-    cpu.run();
+    // cpu.load(program);
+    cpu.run_once();
 
-    println!("a: {:?}", cpu.register_a);
-    println!("x: {:?}", cpu.register_x);
-    println!("y: {:?}", cpu.register_y);
-    
+    assert_eq!(cpu.register_a, v["final"]["a"].as_u64().expect("Unable to unwrap a") as u8);
+    assert_eq!(cpu.register_x, v["final"]["x"].as_u64().expect("Unable to unwrap x") as u8);
+    assert_eq!(cpu.register_y, v["final"]["y"].as_u64().expect("Unable to unwrap y") as u8);
+    assert_eq!(cpu.program_counter, v["final"]["pc"].as_u64().expect("Unable to unwrap pc") as u16);
+    assert_eq!(cpu.stack_pointer, v["final"]["s"].as_u64().expect("Unable to unwrap s") as u8);
+    assert_eq!(cpu.status.bits(), v["final"]["p"].as_u64().expect("Unable to unwrap p") as u8);
+
     Ok(())
+}
+
+fn run_single_opcode(opcode: &str) -> Result<()> {
+    let filename = format!("tests/harte_test_suite/nes6502/v1/{}.json",opcode.to_string());
+    println!("{}", filename);
+    let file: String = std::fs::read_to_string(filename).expect("File not found");
+
+    let v: Value = serde_json::from_str(&file)?;
+    let v_arr = v.as_array().unwrap();
+
+    for i in 0..(v_arr.len() - 1) {
+        run_harte_test(&v_arr[i]).expect(&format!("Failed on test {}", i));
+        println!("passed test {:?}", i)
+    }
+
+    Ok(())
+}
+
+#[test]
+fn run_1() {
+    run_single_opcode("71");
 }

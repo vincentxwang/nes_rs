@@ -17,3 +17,6 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# Test cases (very big)
+tests/harte_test_suite
