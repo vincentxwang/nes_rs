@@ -1,6 +1,4 @@
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
-
-
 use bitflags::Flags;
 
 use crate::opcodes::CPU_OPS_CODES;
@@ -43,6 +41,19 @@ bitflags! {
         const BREAK2            = 0b00100000; // not used
         const OVERFLOW          = 0b01000000;
         const NEGATIVE          = 0b10000000;
+    }
+}
+
+impl CPUFlags {
+    pub fn set_flags(&mut self, data: u8) {
+        self.set(CPUFlags::CARRY, data & (1 << 0) != 0);
+        self.set(CPUFlags::ZERO, data & (1 << 1) != 0);
+        self.set(CPUFlags::INTERRUPT_DISABLE, data & (1 << 2) != 0);
+        self.set(CPUFlags::DECIMAL_MODE, data & (1 << 3) != 0);
+        self.set(CPUFlags::BREAK, data & (1 << 4) != 0);
+        self.set(CPUFlags::BREAK2, data & (1 << 5) != 0);
+        self.set(CPUFlags::OVERFLOW, data & (1 << 6) != 0);
+        self.set(CPUFlags::NEGATIVE, data & (1 << 7) != 0);
     }
 }
 pub struct CPU {
@@ -116,22 +127,22 @@ impl CPU {
     }
 
     // Reads 8 bits.
-    fn mem_read(&self, addr: u16) -> u8 {
+    pub fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
 
-    fn mem_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.memory[addr as usize] = data;
     }
 
     // Converts little-endian (used by NES) to big-endian
-    fn mem_read_u16(&mut self, pos: u16) -> u16 {
+    pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
         (hi << 8) | lo
     }
  
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+    pub fn mem_write_u16(&mut self, pos: u16, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.mem_write(pos, lo);
@@ -395,56 +406,7 @@ impl CPU {
 
     fn plp(&mut self) {
         let data = self.stack_pop();
-        
-        if data & (1 << 0) != 0 {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
-        
-        if data & (1 << 1) != 0 {
-            self.status.insert(CPUFlags::ZERO);
-        } else {
-            self.status.remove(CPUFlags::ZERO);
-        }
-        
-        if data & (1 << 2) != 0 {
-            self.status.insert(CPUFlags::INTERRUPT_DISABLE);
-        } else {
-            self.status.remove(CPUFlags::INTERRUPT_DISABLE);
-        }
-        
-        if data & (1 << 3) != 0 {
-            self.status.insert(CPUFlags::DECIMAL_MODE);
-        } else {
-            self.status.remove(CPUFlags::DECIMAL_MODE);
-        }
-        
-        // Bits 4 and 5 are not used or are specific to the break flag
-        if data & (1 << 4) != 0 {
-            self.status.insert(CPUFlags::BREAK);
-        } else {
-            self.status.remove(CPUFlags::BREAK);
-        }
-        
-        // BREAK2 is not used, but for completeness, handle it if needed
-        if data & (1 << 5) != 0 {
-            self.status.insert(CPUFlags::BREAK2);
-        } else {
-            self.status.remove(CPUFlags::BREAK2);
-        }
-        
-        if data & (1 << 6) != 0 {
-            self.status.insert(CPUFlags::OVERFLOW);
-        } else {
-            self.status.remove(CPUFlags::OVERFLOW);
-        }
-        
-        if data & (1 << 7) != 0 {
-            self.status.insert(CPUFlags::NEGATIVE);
-        } else {
-            self.status.remove(CPUFlags::NEGATIVE);
-        }
+        self.status.set_flags(data);
     }   
 
     fn sbc(&mut self, mode: &AddressingMode) {
@@ -745,5 +707,23 @@ mod test {
         ]);
 
         assert_eq!(cpu.register_a, 1)
+    }
+    #[test]
+    fn test_stack_into_a() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xA2, 0x05,             // LDX #$05
+            0xA9, 0x42,             // LDA #$42
+            0x9D, 0x00, 0x02,       // STA $0200,X
+            0xBD, 0x00, 0x02,       // LDA $0200,X
+            0x48,                   // PHA
+            0xA9, 0x00,             // LDA #$00
+            0x68,                   // PLP
+            0x00                    // BRK
+        ]);
+
+        assert_eq!(cpu.register_a, 0x42);
+        assert_eq!(cpu.register_x, 0x05);
+        assert_eq!(cpu.mem_read_u16(0x0205), 0x42);
     }
 }
