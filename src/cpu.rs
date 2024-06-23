@@ -138,7 +138,7 @@ impl CPU {
     // Converts little-endian (used by NES) to big-endian
     pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
-        let hi = self.mem_read(pos + 1) as u16;
+        let hi = self.mem_read(pos.wrapping_add(1)) as u16;
         (hi << 8) | lo
     }
  
@@ -146,7 +146,7 @@ impl CPU {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.mem_write(pos, lo);
-        self.mem_write(pos + 1, hi);
+        self.mem_write(pos.wrapping_add(1), hi);
     }
     
     pub fn reset(&mut self) {
@@ -573,7 +573,7 @@ impl CPU {
             "BMI" => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
             "BNE" => self.branch(!self.status.contains(CPUFlags::ZERO)),
             "BPL" => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
-            "BRK" => return false,
+            "BRK" => return false, // Assume BRK means program termination. We do not adjust the state of the CPU.
             "BVC" => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
             "BVS" => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
             "CLC" => self.status.remove(CPUFlags::CARRY),
