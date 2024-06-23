@@ -249,8 +249,8 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                data = self.mem_read(addr);
                 addr = self.get_operand_address(mode);
+                data = self.mem_read(addr);
             },
 
         }
