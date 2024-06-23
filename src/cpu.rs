@@ -63,7 +63,7 @@ pub struct CPU {
     pub register_y: u8,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    memory: [u8; 0xFFFF]
+    memory: [u8; 0xFFFF + 1] // + 1 for 2^16
 }
 
 // Stack occupied 0x0100 -> 0x01FF
@@ -87,7 +87,7 @@ impl CPU {
             stack_pointer: 0,
             // interrupt distable and negative initialized
             status: CPUFlags::from_bits_truncate(0b100100),
-            memory: [0; 0xFFFF],
+            memory: [0; 0xFFFF + 1],
         }
     }
 
@@ -558,7 +558,7 @@ impl CPU {
 
     pub fn run_once(&mut self) -> bool {
         let code = self.mem_read(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect(&format!("Invalid code {}", code));
 
@@ -626,7 +626,7 @@ impl CPU {
         }
 
         // -1 because we already incremented program_counter to account for the instruction
-        self.program_counter += (opcode.bytes - 1) as u16;
+        self.program_counter = self.program_counter.wrapping_add((opcode.bytes - 1) as u16);
 
         true
     }
