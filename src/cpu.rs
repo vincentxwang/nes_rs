@@ -279,11 +279,15 @@ impl CPU {
 
     fn lsr(&mut self, mode: &AddressingMode) {
         let mut data;
-        let addr = self.get_operand_address(mode);
+        let mut addr = 0; // Dummy
         // AddressingNone => Accumulator
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
-            _ => data = self.mem_read(addr),
+            _ => {
+                addr = self.get_operand_address(mode);
+                data = self.mem_read(addr);
+            },
+
         }
         self.status.set(CPUFlags::CARRY, data & 1 == 1);
         data >>= 1;
@@ -318,8 +322,10 @@ impl CPU {
     fn jmp(&mut self, mode: &AddressingMode) {
         let mem_address = self.mem_read_u16(self.program_counter);
 
+        // We -2 because of the extra bytes added on to account for the length of the program
+        // that we don't want.
         match mode {
-            AddressingMode::Absolute => self.program_counter = mem_address,
+            AddressingMode::Absolute => self.program_counter = mem_address.wrapping_sub(2),
             AddressingMode::Indirect => {
                 let indirect_ref = if mem_address & 0x00FF == 0x00FF {
                     let lo = self.mem_read(mem_address);
@@ -329,20 +335,20 @@ impl CPU {
                     self.mem_read_u16(mem_address)
                 };
 
-                self.program_counter = indirect_ref;
+                self.program_counter = indirect_ref.wrapping_sub(2);
             },
             _ => {
                 panic!("Invalid mode {:?} in JMP", mode);
             }
         }
-        self.program_counter = mem_address;
     }
 
     fn jsr(&mut self) {
-        // not sure about the constant...
         self.stack_push_u16(self.program_counter + 2 - 1);
         let target_address = self.mem_read_u16(self.program_counter);
-        self.program_counter = target_address;
+        // We -2 because of the extra bytes added on to account for the length of the program
+        // that we don't want.
+        self.program_counter = target_address.wrapping_sub(2);
     }
 
     fn dex(&mut self) {
@@ -449,7 +455,7 @@ impl CPU {
         let val = self.mem_read(addr);
 
         self.mem_write(addr, val.wrapping_add(1));
-        self.update_zero_and_negative_flags(self.register_x);
+        self.update_zero_and_negative_flags(val.wrapping_add(1));
     }
 
     fn inx(&mut self) {
