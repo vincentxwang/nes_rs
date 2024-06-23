@@ -553,16 +553,14 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        loop {
-            self.run_once();
-        }
+        while self.run_once() {}
     }
 
-    pub fn run_once(&mut self) {
+    pub fn run_once(&mut self) -> bool {
         let code = self.mem_read(self.program_counter);
         self.program_counter += 1;
 
-        let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect("Invalid code");
+        let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect(&format!("Invalid code {}", code));
 
         match opcode.op {
             "ADC" => self.adc(&opcode.addressing_mode),
@@ -575,7 +573,7 @@ impl CPU {
             "BMI" => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
             "BNE" => self.branch(!self.status.contains(CPUFlags::ZERO)),
             "BPL" => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
-            "BRK" => return,
+            "BRK" => return false,
             "BVC" => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
             "BVS" => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
             "CLC" => self.status.remove(CPUFlags::CARRY),
@@ -624,11 +622,13 @@ impl CPU {
             "TXA" => self.txa(),
             "TXS" => self.stack_pointer = self.register_x,
             "TYA" => self.tya(),
-            _ => panic!("Invalid code"),
+            _ => panic!("Invalid code {:?}", opcode.op),
         }
 
         // -1 because we already incremented program_counter to account for the instruction
         self.program_counter += (opcode.bytes - 1) as u16;
+
+        true
     }
 }
 

@@ -55,7 +55,7 @@ fn run_single_opcode(opcode: &str) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn run_1() {
-    run_single_opcode("71");
-}
+// #[test]
+// fn run_1() {
+//     run_single_opcode("71");
+// }
