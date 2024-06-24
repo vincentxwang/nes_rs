@@ -466,29 +466,30 @@ impl CPU {
     }
 
     fn ror(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let mut addr = 0;
         let mut data;
         match mode {
-            AddressingMode::NoneAddressing => data = self.mem_read(addr),
-            _ => data = self.mem_read(addr),
+            AddressingMode::NoneAddressing => data = self.register_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                data = self.mem_read(addr);
+            }
         }
 
         let old_carry = self.status.contains(CPUFlags::CARRY);
-
-        if data & 1 == 1 {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
+        self.status.set(CPUFlags::CARRY, data & 1 == 1);
         data >>= 1;
+
         if old_carry {
             data |= 0b10000000;
         }
+
         match mode {
-            AddressingMode::NoneAddressing => self.add_to_register_a(data),
+            AddressingMode::NoneAddressing => self.set_register_a(data),
             _ => {
                 self.mem_write(addr, data);
-                self.update_negative_flags(data);
+                self.status.set(CPUFlags::NEGATIVE, data >> 7 == 1);
+                self.status.set(CPUFlags::ZERO, data == 0);
             },
         }
     }
@@ -505,29 +506,30 @@ impl CPU {
     }
 
     fn rol(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let mut addr = 0;
         let mut data;
         match mode {
-            AddressingMode::NoneAddressing => data = self.mem_read(addr),
-            _ => data = self.mem_read(addr),
+            AddressingMode::NoneAddressing => data = self.register_a,
+            _ => {
+                addr = self.get_operand_address(mode);
+                data = self.mem_read(addr);
+            }
         }
 
         let old_carry = self.status.contains(CPUFlags::CARRY);
-
-        if data >> 1 == 1 {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
+        self.status.set(CPUFlags::CARRY, data >> 7 == 1);
         data <<= 1;
+        
         if old_carry {
             data |= 1;
         }
+
         match mode {
-            AddressingMode::NoneAddressing => self.add_to_register_a(data),
+            AddressingMode::NoneAddressing => self.set_register_a(data),
             _ => {
                 self.mem_write(addr, data);
-                self.update_negative_flags(data);
+                self.status.set(CPUFlags::NEGATIVE, data >> 7 == 1);
+                self.status.set(CPUFlags::ZERO, data == 0);
             },
         }
     }
@@ -603,7 +605,7 @@ impl CPU {
                 self.plp();
                 self.program_counter = self.stack_pop_u16();
             },
-            "RTS" => self.program_counter = self.stack_pop_u16().wrapping_sub(1), // + 1?
+            "RTS" => self.program_counter = self.stack_pop_u16().wrapping_add(1),
             "SBC" => self.sbc(&opcode.addressing_mode),
             "SEC" => self.status.insert(CPUFlags::CARRY),
             "SED" => self.status.insert(CPUFlags::DECIMAL_MODE),
