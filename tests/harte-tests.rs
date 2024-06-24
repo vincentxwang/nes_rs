@@ -3,6 +3,10 @@
 
 use serde_json::{Result, Value};
 use nes_rs::cpu::CPU;
+use nes_rs::cpu::CPUFlags;
+
+
+
 
 fn run_harte_test(v: &Value) -> Result<()> {
     // let v: Value = serde_json::from_str(data)?;
@@ -14,7 +18,7 @@ fn run_harte_test(v: &Value) -> Result<()> {
     cpu.register_a = v["initial"]["a"].as_u64().expect("Unable to unwrap a") as u8;
     cpu.register_x = v["initial"]["x"].as_u64().expect("Unable to unwrap x") as u8;
     cpu.register_y = v["initial"]["y"].as_u64().expect("Unable to unwrap y") as u8;
-    cpu.status.set_flags(v["initial"]["p"].as_u64().expect("Unable to unwrap p") as u8);
+    cpu.status = CPUFlags::from_bits_retain(v["initial"]["p"].as_u64().expect("Unable to unwrap p") as u8);
 
     let ram = v["initial"]["ram"].as_array().expect("Unable to unwrap ram");
 
@@ -35,6 +39,12 @@ fn run_harte_test(v: &Value) -> Result<()> {
     assert_eq!(cpu.program_counter, v["final"]["pc"].as_u64().expect("Unable to unwrap pc") as u16);
     assert_eq!(cpu.stack_pointer, v["final"]["s"].as_u64().expect("Unable to unwrap s") as u8);
     assert_eq!(cpu.status.bits(), v["final"]["p"].as_u64().expect("Unable to unwrap p") as u8);
+
+    let ram_final = v["final"]["ram"].as_array().expect("Unable to unwrap final ram");
+
+    for pair in ram_final {
+        assert_eq!(cpu.mem_read(pair[0].as_u64().unwrap() as u16), pair[1].as_u64().unwrap() as u8)
+    }
 
     Ok(())
 }
@@ -57,5 +67,5 @@ fn run_single_opcode(opcode: &str) -> Result<()> {
 
 // #[test]
 // fn run_1() {
-//     run_single_opcode("71");
+//     run_single_opcode("2A");
 // }

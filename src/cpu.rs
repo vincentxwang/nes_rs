@@ -38,24 +38,12 @@ bitflags! {
         const INTERRUPT_DISABLE = 0b00000100;
         const DECIMAL_MODE      = 0b00001000;
         const BREAK             = 0b00010000;
-        const BREAK2            = 0b00100000; // not used
+        const BREAK2            = 0b00100000; // not used, default = 1
         const OVERFLOW          = 0b01000000;
         const NEGATIVE          = 0b10000000;
     }
 }
 
-impl CPUFlags {
-    pub fn set_flags(&mut self, data: u8) {
-        self.set(CPUFlags::CARRY, data & (1 << 0) != 0);
-        self.set(CPUFlags::ZERO, data & (1 << 1) != 0);
-        self.set(CPUFlags::INTERRUPT_DISABLE, data & (1 << 2) != 0);
-        self.set(CPUFlags::DECIMAL_MODE, data & (1 << 3) != 0);
-        self.set(CPUFlags::BREAK, data & (1 << 4) != 0);
-        self.set(CPUFlags::BREAK2, data & (1 << 5) != 0);
-        self.set(CPUFlags::OVERFLOW, data & (1 << 6) != 0);
-        self.set(CPUFlags::NEGATIVE, data & (1 << 7) != 0);
-    }
-}
 pub struct CPU {
     pub register_a: u8,
     pub status: CPUFlags,
@@ -416,7 +404,8 @@ impl CPU {
 
     fn plp(&mut self) {
         let data = self.stack_pop();
-        self.status.set_flags(data);
+        // ignore break flag and bit 5
+        self.status = CPUFlags::from_bits_retain((self.status.bits() & 0b0011_0000) | (data & 0b1100_1111));
     }   
 
     fn sbc(&mut self, mode: &AddressingMode) {
@@ -605,7 +594,7 @@ impl CPU {
             "NOP" => (),
             "ORA" => self.ora(&opcode.addressing_mode),
             "PHA" => self.stack_push(self.register_a),
-            "PHP" => self.stack_push(self.status.bits()),
+            "PHP" => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
             "PLA" => self.pla(),
             "PLP" => self.plp(),
             "ROL" => self.rol(&opcode.addressing_mode),
