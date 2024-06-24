@@ -1,26 +1,33 @@
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
-use bitflags::Flags;
 
 use crate::opcodes::CPU_OPS_CODES;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
-   Immediate,
-   ZeroPage,
-   ZeroPage_X,
-   ZeroPage_Y,
-   Absolute,
-   Absolute_X,
-   Absolute_Y,
-   Indirect,
-   Indirect_X,
-   Indirect_Y,
-   NoneAddressing,
+    Immediate,
+    ZeroPage,
+    ZeroPage_X,
+    ZeroPage_Y,
+    Absolute,
+    Absolute_X,
+    Absolute_Y,
+    Indirect,
+    Indirect_X,
+    Indirect_Y,
+    NoneAddressing,
 }
 
+pub enum Operation { 
+    ADC, AND, ASL, BCC, BCS, BEQ, BIT, BMI, BNE, BPL, BRK, BVC, BVS, CLC, 
+    CLD, CLI, CLV, CMP, CPX, CPY, DEC, DEX, DEY, EOR, INC, INX, INY, JMP, 
+    JSR, LDA, LDX, LDY, LSR, NOP, ORA, PHA, PHP, PLA, PLP, ROL, ROR, RTI, 
+    RTS, SBC, SEC, SED, SEI, STA, STX, STY, TAX, TAY, TSX, TXA, TXS, TYA 
+}
+
+
 bitflags! {
-        // Status flags -- https://www.nesdev.org/wiki/Status_flags
+    // Status flags -- https://www.nesdev.org/wiki/Status_flags
     // 7654 3210
     // NV0B DIZC
     // |||| ||||
@@ -33,14 +40,14 @@ bitflags! {
     // |+-------- Overflow
     // +--------- Negative
     pub struct CPUFlags: u8 {
-        const CARRY             = 0b00000001;
-        const ZERO              = 0b00000010;
-        const INTERRUPT_DISABLE = 0b00000100;
-        const DECIMAL_MODE      = 0b00001000;
-        const BREAK             = 0b00010000;
-        const BREAK2            = 0b00100000; // not used, default = 1
-        const OVERFLOW          = 0b01000000;
-        const NEGATIVE          = 0b10000000;
+        const CARRY             = 1;
+        const ZERO              = 1 << 1;
+        const INTERRUPT_DISABLE = 1 << 2;
+        const DECIMAL_MODE      = 1 << 3;
+        const BREAK             = 1 << 4;
+        const BREAK2            = 1 << 5; // not used, default = 1
+        const OVERFLOW          = 1 << 6;
+        const NEGATIVE          = 1 << 7;
     }
 }
 
@@ -188,7 +195,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-     /// note: ignoring decimal mode
+    /// note: ignoring decimal mode
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
     fn add_to_register_a(&mut self, data: u8) {
         let sum = self.register_a as u16
@@ -227,7 +234,7 @@ impl CPU {
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
-        self.update_zero_and_negative_flags(self.register_a); // Unsure... documentation is too vague
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn asl(&mut self, mode: &AddressingMode) {
@@ -242,11 +249,7 @@ impl CPU {
             },
 
         }
-        if data >> 7 == 1 {
-            self.status.insert(CPUFlags::CARRY);
-        } else {
-            self.status.remove(CPUFlags::CARRY);
-        }
+        self.status.set(CPUFlags::CARRY, data >> 7 == 1);
         data <<= 1;
         match mode {
             AddressingMode::NoneAddressing => self.register_a = data,
@@ -259,8 +262,8 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         let res = self.register_a & data;
+        
         self.status.set(CPUFlags::ZERO, res == 0);
-
         self.status.set(CPUFlags::NEGATIVE, data & 0b10000000 > 0);
         self.status.set(CPUFlags::OVERFLOW, data & 0b01000000 > 0);
     }
@@ -457,14 +460,6 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn update_negative_flags(&mut self, result: u8) {
-        if result >> 7 == 1 {
-            self.status.insert(CPUFlags::NEGATIVE)
-        } else {
-            self.status.remove(CPUFlags::NEGATIVE)
-        }
-    }
-
     fn ror(&mut self, mode: &AddressingMode) {
         let mut addr = 0;
         let mut data;
@@ -536,17 +531,8 @@ impl CPU {
 
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
-        if result == 0 {
-            self.status.insert(CPUFlags::ZERO); 
-        } else {
-            self.status.remove(CPUFlags::ZERO);
-        }
-
-        if result & 0b1000_0000 != 0 {
-            self.status.insert(CPUFlags::NEGATIVE);
-        } else {
-            self.status.remove(CPUFlags::NEGATIVE);
-        }
+        self.status.set(CPUFlags::ZERO, result == 0);
+        self.status.set(CPUFlags::NEGATIVE, result & 0b1000_0000 != 0);
     }
 
     pub fn run(&mut self) {
@@ -557,70 +543,69 @@ impl CPU {
         let code = self.mem_read(self.program_counter);
         self.program_counter = self.program_counter.wrapping_add(1);
 
-        let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).expect(&format!("Invalid code {}", code));
+        let opcode = CPU_OPS_CODES.iter().find(|opcode| opcode.code == code).unwrap_or_else(|| panic!("Invalid code {}", code));
 
         match opcode.op {
-            "ADC" => self.adc(&opcode.addressing_mode),
-            "AND" => self.and(&opcode.addressing_mode),
-            "ASL" => self.asl(&opcode.addressing_mode),
-            "BCC" => self.branch(!self.status.contains(CPUFlags::CARRY)),
-            "BCS" => self.branch(self.status.contains(CPUFlags::CARRY)),
-            "BEQ" => self.branch(self.status.contains(CPUFlags::ZERO)),
-            "BIT" => self.bit(&opcode.addressing_mode),
-            "BMI" => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
-            "BNE" => self.branch(!self.status.contains(CPUFlags::ZERO)),
-            "BPL" => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
-            "BRK" => return false, // Assume BRK means program termination. We do not adjust the state of the CPU.
-            "BVC" => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
-            "BVS" => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
-            "CLC" => self.status.remove(CPUFlags::CARRY),
-            "CLD" => self.status.remove(CPUFlags::DECIMAL_MODE),
-            "CLI" => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
-            "CLV" => self.status.remove(CPUFlags::OVERFLOW),
-            "CMP" => self.compare(&opcode.addressing_mode, self.register_a),
-            "CPX" => self.compare(&opcode.addressing_mode, self.register_x),
-            "CPY" => self.compare(&opcode.addressing_mode, self.register_y),
-            "DEC" => self.dec(&opcode.addressing_mode),
-            "DEX" => self.dex(),
-            "DEY" => self.dey(),
-            "EOR" => self.eor(&opcode.addressing_mode),
-            "INC" => self.inc(&opcode.addressing_mode),
-            "INX" => self.inx(),
-            "INY" => self.iny(),
-            "JMP" => self.jmp(&opcode.addressing_mode),
-            "JSR" => self.jsr(),
-            "LDA" => self.lda(&opcode.addressing_mode),
-            "LDX" => self.ldx(&opcode.addressing_mode),
-            "LDY" => self.ldy(&opcode.addressing_mode),
-            "LSR" => self.lsr(&opcode.addressing_mode),
-            "NOP" => (),
-            "ORA" => self.ora(&opcode.addressing_mode),
-            "PHA" => self.stack_push(self.register_a),
-            "PHP" => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
-            "PLA" => self.pla(),
-            "PLP" => self.plp(),
-            "ROL" => self.rol(&opcode.addressing_mode),
-            "ROR" => self.ror(&opcode.addressing_mode),
-            "RTI" => {
+            Operation::ADC => self.adc(&opcode.addressing_mode),
+            Operation::AND => self.and(&opcode.addressing_mode),
+            Operation::ASL => self.asl(&opcode.addressing_mode),
+            Operation::BCC => self.branch(!self.status.contains(CPUFlags::CARRY)),
+            Operation::BCS => self.branch(self.status.contains(CPUFlags::CARRY)),
+            Operation::BEQ => self.branch(self.status.contains(CPUFlags::ZERO)),
+            Operation::BIT => self.bit(&opcode.addressing_mode),
+            Operation::BMI => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
+            Operation::BNE => self.branch(!self.status.contains(CPUFlags::ZERO)),
+            Operation::BPL => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
+            Operation::BRK => return false, // Assume BRK means program termination. We do not adjust the state of the CPU.
+            Operation::BVC => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
+            Operation::BVS => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
+            Operation::CLC => self.status.remove(CPUFlags::CARRY),
+            Operation::CLD => self.status.remove(CPUFlags::DECIMAL_MODE),
+            Operation::CLI => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
+            Operation::CLV => self.status.remove(CPUFlags::OVERFLOW),
+            Operation::CMP => self.compare(&opcode.addressing_mode, self.register_a),
+            Operation::CPX => self.compare(&opcode.addressing_mode, self.register_x),
+            Operation::CPY => self.compare(&opcode.addressing_mode, self.register_y),
+            Operation::DEC => self.dec(&opcode.addressing_mode),
+            Operation::DEX => self.dex(),
+            Operation::DEY => self.dey(),
+            Operation::EOR => self.eor(&opcode.addressing_mode),
+            Operation::INC => self.inc(&opcode.addressing_mode),
+            Operation::INX => self.inx(),
+            Operation::INY => self.iny(),
+            Operation::JMP => self.jmp(&opcode.addressing_mode),
+            Operation::JSR => self.jsr(),
+            Operation::LDA => self.lda(&opcode.addressing_mode),
+            Operation::LDX => self.ldx(&opcode.addressing_mode),
+            Operation::LDY => self.ldy(&opcode.addressing_mode),
+            Operation::LSR => self.lsr(&opcode.addressing_mode),
+            Operation::NOP => (),
+            Operation::ORA => self.ora(&opcode.addressing_mode),
+            Operation::PHA => self.stack_push(self.register_a),
+            Operation::PHP => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
+            Operation::PLA => self.pla(),
+            Operation::PLP => self.plp(),
+            Operation::ROL => self.rol(&opcode.addressing_mode),
+            Operation::ROR => self.ror(&opcode.addressing_mode),
+            Operation::RTI => {
                 self.plp();
                 self.program_counter = self.stack_pop_u16();
             },
-            "RTS" => self.program_counter = self.stack_pop_u16().wrapping_add(1),
-            "SBC" => self.sbc(&opcode.addressing_mode),
-            "SEC" => self.status.insert(CPUFlags::CARRY),
-            "SED" => self.status.insert(CPUFlags::DECIMAL_MODE),
-            "SEI" => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
-            "STA" => self.sta(&opcode.addressing_mode),
-            "STX" => self.stx(&opcode.addressing_mode),
-            "STY" => self.sty(&opcode.addressing_mode),
-            "TAX" => self.tax(),
-            "TAY" => self.tay(),
-            "TSX" => self.tsx(),
-            "TXA" => self.txa(),
-            "TXS" => self.stack_pointer = self.register_x,
-            "TYA" => self.tya(),
-            _ => panic!("Invalid code {:?}", opcode.op),
-        }
+            Operation::RTS => self.program_counter = self.stack_pop_u16().wrapping_add(1),
+            Operation::SBC => self.sbc(&opcode.addressing_mode),
+            Operation::SEC => self.status.insert(CPUFlags::CARRY),
+            Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
+            Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
+            Operation::STA => self.sta(&opcode.addressing_mode),
+            Operation::STX => self.stx(&opcode.addressing_mode),
+            Operation::STY => self.sty(&opcode.addressing_mode),
+            Operation::TAX => self.tax(),
+            Operation::TAY => self.tay(),
+            Operation::TSX => self.tsx(),
+            Operation::TXA => self.txa(),
+            Operation::TXS => self.stack_pointer = self.register_x,
+            Operation::TYA => self.tya(),
+        }        
 
         // -1 because we already incremented program_counter to account for the instruction
         self.program_counter = self.program_counter.wrapping_add((opcode.bytes - 1) as u16);

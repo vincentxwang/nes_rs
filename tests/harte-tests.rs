@@ -1,11 +1,10 @@
 // The following test cases are taken from https://github.com/SingleStepTests/ProcessorTests/tree/main/nes6502 as of 
 // 6/22/2024. This setup assumes the following file naming: tests/harte_test_suite/nes6502/v1/[OPCODE].json.
 
+use nes_rs::opcodes::CPU_OPS_CODES;
 use serde_json::{Result, Value};
 use nes_rs::cpu::CPU;
 use nes_rs::cpu::CPUFlags;
-
-
 
 
 fn run_harte_test(v: &Value) -> Result<()> {
@@ -59,13 +58,18 @@ fn run_single_opcode(opcode: &str) -> Result<()> {
 
     for i in 0..(v_arr.len() - 1) {
         run_harte_test(&v_arr[i]).expect(&format!("Failed on test {}", i));
-        println!("passed test {:?}", i)
+        // println!("passed test {:?}", i)
     }
 
     Ok(())
 }
 
 // #[test]
-// fn run_1() {
-//     run_single_opcode("2A");
+// fn run_all_opcodes() {
+//     for i in 0..CPU_OPS_CODES.len() {
+//         let result = format!("{:02x}", CPU_OPS_CODES[i].code);
+//         if &result != "00" {
+//             run_single_opcode(&result);
+//         }
+//     }
 // }
