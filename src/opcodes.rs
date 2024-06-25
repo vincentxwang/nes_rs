@@ -9,7 +9,13 @@ pub struct OpCode {
 }
 
 impl OpCode {
-    pub fn new(code: u8, op: Operation, bytes: u8, cycles: u8, addressing_mode: AddressingMode) -> Self {
+    pub fn new(
+        code: u8,
+        op: Operation,
+        bytes: u8,
+        cycles: u8,
+        addressing_mode: AddressingMode,
+    ) -> Self {
         OpCode {
             code,
             op,
@@ -119,7 +125,7 @@ lazy_static! {
 
         OpCode::new(0xc8, Operation::INY, 1, 2, AddressingMode::NoneAddressing),
 
-        OpCode::new(0x4c, Operation::JMP, 3, 3, AddressingMode::Absolute), 
+        OpCode::new(0x4c, Operation::JMP, 3, 3, AddressingMode::Absolute),
         OpCode::new(0x6c, Operation::JMP, 3, 5, AddressingMode::Indirect), // there is a bug here that is NOT implemented
 
         OpCode::new(0x20, Operation::JSR, 3, 6, AddressingMode::NoneAddressing),
