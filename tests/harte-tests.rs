@@ -92,12 +92,12 @@ fn run_single_opcode(opcode: &str) -> Result<()> {
     Ok(())
 }
 
-// #[test]
-// fn run_all_opcodes() {
-//     for i in 0..CPU_OPS_CODES.len() {
-//         let result = format!("{:02x}", CPU_OPS_CODES[i].code);
-//         if &result != "00" {
-//             run_single_opcode(&result);
-//         }
-//     }
-// }
+#[test]
+fn run_all_opcodes() {
+    for i in 0..CPU_OPS_CODES.len() {
+        let result = format!("{:02x}", CPU_OPS_CODES[i].code);
+        if &result != "00" {
+            run_single_opcode(&result);
+        }
+    }
+}

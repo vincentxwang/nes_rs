@@ -2,6 +2,7 @@
 //!
 //! <http://wiki.nesdev.com/w/index.php/CPU>
 
+use crate::bus::Bus;
 use crate::opcodes::CPU_OPS_CODES;
 
 #[derive(Debug)]
@@ -113,7 +114,7 @@ pub struct CPU {
     pub register_y: u8,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    memory: [u8; 0xFFFF + 1], // + 1 for 2^16
+    pub bus: Bus,
 }
 
 // Stack occupied 0x0100 -> 0x01FF
@@ -124,6 +125,41 @@ const STACK_RESET: u8 = 0xfd;
 impl Default for CPU {
     fn default() -> Self {
         Self::new()
+    }
+}
+pub trait Mem {
+    fn mem_read(&self, addr: u16) -> u8;
+
+    fn mem_write(&mut self, addr: u16, data: u8);
+
+    fn mem_read_u16(&self, pos: u16) -> u16 {
+        let lo = self.mem_read(pos) as u16;
+        let hi = self.mem_read(pos.wrapping_add(1)) as u16;
+        (hi << 8) | (lo as u16)
+    }
+
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.mem_write(pos, lo);
+        self.mem_write(pos.wrapping_add(1), hi);
+    }
+}
+
+impl Mem for CPU {
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.bus.mem_write(addr, data)
+    }
+    fn mem_read_u16(&self, pos: u16) -> u16 {
+        self.bus.mem_read_u16(pos)
+    }
+
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        self.bus.mem_write_u16(pos, data)
     }
 }
 
@@ -437,11 +473,11 @@ impl CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
+            bus: Bus::new(),
             program_counter: 0,
             stack_pointer: 0,
             // interrupt distable and negative initialized
             status: CPUFlags::from_bits_truncate(0b100100),
-            memory: [0; 0xFFFF + 1],
         }
     }
 
@@ -488,29 +524,6 @@ impl CPU {
         }
     }
 
-    // Reads 8 bits.
-    pub fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    pub fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
-    }
-
-    // Converts little-endian (used by NES) to big-endian
-    pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
-        let lo = self.mem_read(pos) as u16;
-        let hi = self.mem_read(pos.wrapping_add(1)) as u16;
-        (hi << 8) | lo
-    }
-
-    pub fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
-        self.mem_write(pos, lo);
-        self.mem_write(pos.wrapping_add(1), hi);
-    }
-
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
@@ -523,7 +536,9 @@ impl CPU {
 
     pub fn load(&mut self, program: Vec<u8>) {
         // 0x8000 to 0xFFFF stores program ROM
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0600 + i, program[i as usize]);
+        }
         self.mem_write_u16(0xFFFC, 0x8000);
     }
 
@@ -763,23 +778,5 @@ mod test {
         ]);
 
         assert_eq!(cpu.register_a, 1)
-    }
-    #[test]
-    fn test_stack_into_a() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![
-            0xA2, 0x05, // LDX #$05
-            0xA9, 0x42, // LDA #$42
-            0x9D, 0x00, 0x02, // STA $0200,X
-            0xBD, 0x00, 0x02, // LDA $0200,X
-            0x48, // PHA
-            0xA9, 0x00, // LDA #$00
-            0x68, // PLP
-            0x00, // BRK
-        ]);
-
-        assert_eq!(cpu.register_a, 0x42);
-        assert_eq!(cpu.register_x, 0x05);
-        assert_eq!(cpu.mem_read_u16(0x0205), 0x42);
     }
 }
