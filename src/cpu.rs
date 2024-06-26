@@ -6,8 +6,8 @@ use core::fmt;
 use std::collections::HashMap;
 
 use crate::bus::Bus;
-use crate::opcodes::CPU_OPS_CODES;
 use crate::opcodes;
+use crate::opcodes::CPU_OPS_CODES;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -488,7 +488,7 @@ impl CPU {
         }
     }
 
-    fn get_operand_address(&self, mode:&AddressingMode) -> u16 {
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
             _ => self.get_absolute_address(mode, self.program_counter),
@@ -499,18 +499,14 @@ impl CPU {
         match mode {
             AddressingMode::ZeroPage => self.mem_read(addr) as u16,
             AddressingMode::Absolute => self.mem_read_u16(addr),
-            AddressingMode::ZeroPage_X => self
-                .mem_read(addr)
-                .wrapping_add(self.register_x) as u16,
-            AddressingMode::ZeroPage_Y => self
-                .mem_read(addr)
-                .wrapping_add(self.register_y) as u16,
-            AddressingMode::Absolute_X => self
-                .mem_read_u16(addr)
-                .wrapping_add(self.register_x as u16),
-            AddressingMode::Absolute_Y => self
-                .mem_read_u16(addr)
-                .wrapping_add(self.register_y as u16),
+            AddressingMode::ZeroPage_X => self.mem_read(addr).wrapping_add(self.register_x) as u16,
+            AddressingMode::ZeroPage_Y => self.mem_read(addr).wrapping_add(self.register_y) as u16,
+            AddressingMode::Absolute_X => {
+                self.mem_read_u16(addr).wrapping_add(self.register_x as u16)
+            }
+            AddressingMode::Absolute_Y => {
+                self.mem_read_u16(addr).wrapping_add(self.register_y as u16)
+            }
             AddressingMode::Indirect_X => {
                 let base = self.mem_read(addr);
 
@@ -620,9 +616,10 @@ impl CPU {
         self.run_with_callback(|_| {});
     }
 
-    pub fn run_with_callback<F>(&mut self, mut callback: F) 
-    where F: FnMut(&mut CPU) {
-
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         // let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
 
         loop {
@@ -630,13 +627,13 @@ impl CPU {
 
             let code = self.mem_read(self.program_counter);
             self.program_counter = self.program_counter.wrapping_add(1);
-            
+
             // TODO: implement a hashmap instead of this lookup
             let opcode = CPU_OPS_CODES
                 .iter()
                 .find(|opcode| opcode.code == code)
                 .unwrap_or_else(|| panic!("Invalid code {}", code));
-    
+
             match opcode.op {
                 Operation::ADC => self.adc(&opcode.addressing_mode),
                 Operation::AND => self.and(&opcode.addressing_mode),
@@ -698,7 +695,7 @@ impl CPU {
                 Operation::TXS => self.stack_pointer = self.register_x,
                 Operation::TYA => self.tya(),
             }
-    
+
             // -1 because we already incremented program_counter to account for the instruction
             self.program_counter = self.program_counter.wrapping_add((opcode.bytes - 1) as u16);
         }
@@ -706,7 +703,7 @@ impl CPU {
 }
 
 pub fn trace(cpu: &CPU) -> String {
-    let ref opscodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
+    let opscodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
 
     let code = cpu.mem_read(cpu.program_counter);
     let ops = opscodes.get(&code).unwrap();
@@ -725,7 +722,7 @@ pub fn trace(cpu: &CPU) -> String {
 
     let tmp = match ops.bytes {
         1 => match ops.code {
-            0x0a | 0x4a | 0x2a | 0x6a => format!("A "),
+            0x0a | 0x4a | 0x2a | 0x6a => "A ".to_string(),
             _ => String::from(""),
         },
         2 => {
@@ -820,9 +817,15 @@ pub fn trace(cpu: &CPU) -> String {
         .map(|z| format!("{:02x}", z))
         .collect::<Vec<String>>()
         .join(" ");
-    let asm_str = format!("{:04x}  {:8} {: >4} {}", begin, hex_str, ops.op.to_string(), tmp)
-        .trim()
-        .to_string();
+    let asm_str = format!(
+        "{:04x}  {:8} {: >4} {}",
+        begin,
+        hex_str,
+        ops.op.to_string(),
+        tmp
+    )
+    .trim()
+    .to_string();
 
     format!(
         "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
@@ -831,11 +834,10 @@ pub fn trace(cpu: &CPU) -> String {
     .to_ascii_uppercase()
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::cartridge::test;
-    use super::*;
+    
+    
 
     // #[test]
     // fn test_0xa9_lda_immediate_load_data() {
@@ -930,68 +932,67 @@ mod test {
 
 #[cfg(test)]
 mod trace_test {
-   use super::*;
-   use crate::bus::Bus;
-   use crate::cartridge::test::create_test_cartridge;
-   use crate::cpu::CPU;
+    use super::*;
+    use crate::bus::Bus;
+    use crate::cartridge::test::create_test_cartridge;
+    use crate::cpu::CPU;
 
-   #[test]
-   fn test_format_trace() {
-       let mut bus = Bus::new(create_test_cartridge());
-       bus.mem_write(100, 0xa2);
-       bus.mem_write(101, 0x01);
-       bus.mem_write(102, 0xca);
-       bus.mem_write(103, 0x88);
-       bus.mem_write(104, 0x00);
+    #[test]
+    fn test_format_trace() {
+        let mut bus = Bus::new(create_test_cartridge());
+        bus.mem_write(100, 0xa2);
+        bus.mem_write(101, 0x01);
+        bus.mem_write(102, 0xca);
+        bus.mem_write(103, 0x88);
+        bus.mem_write(104, 0x00);
 
-       let mut cpu = CPU::new(bus);
-       cpu.program_counter = 0x64;
-       cpu.register_a = 1;
-       cpu.register_x = 2;
-       cpu.register_y = 3;
-       let mut result: Vec<String> = vec![];
-       cpu.run_with_callback(|cpu| {
-           result.push(trace(cpu));
-       });
-       assert_eq!(
-           "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
-           result[0]
-       );
-       assert_eq!(
-           "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
-           result[1]
-       );
-       assert_eq!(
-           "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
-           result[2]
-       );
-   }
+        let mut cpu = CPU::new(bus);
+        cpu.program_counter = 0x64;
+        cpu.register_a = 1;
+        cpu.register_x = 2;
+        cpu.register_y = 3;
+        let mut result: Vec<String> = vec![];
+        cpu.run_with_callback(|cpu| {
+            result.push(trace(cpu));
+        });
+        assert_eq!(
+            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
+            result[0]
+        );
+        assert_eq!(
+            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
+            result[1]
+        );
+        assert_eq!(
+            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
+            result[2]
+        );
+    }
 
-   #[test]
-   fn test_format_mem_access() {
-       let mut bus = Bus::new(create_test_cartridge());
-       // ORA ($33), Y
-       bus.mem_write(100, 0x11);
-       bus.mem_write(101, 0x33);
+    #[test]
+    fn test_format_mem_access() {
+        let mut bus = Bus::new(create_test_cartridge());
+        // ORA ($33), Y
+        bus.mem_write(100, 0x11);
+        bus.mem_write(101, 0x33);
 
+        //data
+        bus.mem_write(0x33, 0x00);
+        bus.mem_write(0x34, 0x04);
 
-       //data
-       bus.mem_write(0x33, 00);
-       bus.mem_write(0x34, 04);
+        //target cell
+        bus.mem_write(0x400, 0xAA);
 
-       //target cell
-       bus.mem_write(0x400, 0xAA);
-
-       let mut cpu = CPU::new(bus);
-       cpu.program_counter = 0x64;
-       cpu.register_y = 0;
-       let mut result: Vec<String> = vec![];
-       cpu.run_with_callback(|cpu| {
-           result.push(trace(cpu));
-       });
-       assert_eq!(
-           "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
-           result[0]
-       );
-   }
+        let mut cpu = CPU::new(bus);
+        cpu.program_counter = 0x64;
+        cpu.register_y = 0;
+        let mut result: Vec<String> = vec![];
+        cpu.run_with_callback(|cpu| {
+            result.push(trace(cpu));
+        });
+        assert_eq!(
+            "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
+            result[0]
+        );
+    }
 }

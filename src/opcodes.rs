@@ -1,6 +1,6 @@
 use crate::cpu::AddressingMode;
-use std::collections::HashMap;
 use crate::cpu::Operation;
+use std::collections::HashMap;
 pub struct OpCode {
     pub code: u8,
     pub op: Operation,

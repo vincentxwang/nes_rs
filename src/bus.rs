@@ -1,5 +1,5 @@
-use crate::cpu::Mem;
 use crate::cartridge::Cartridge;
+use crate::cpu::Mem;
 
 /// NES Bus
 ///
@@ -58,7 +58,7 @@ impl Bus {
         addr -= PRG_ROM_START;
         // Mirror in case PRG ROM takes up only 16kB instead of 32kB.
         if self.cartridge.prg_rom.len() == 0x4000 && addr >= 0x4000 {
-            addr = addr % 0x4000;
+            addr %= 0x4000;
         }
         self.cartridge.prg_rom[addr as usize]
     }
@@ -76,9 +76,7 @@ impl Mem for Bus {
                 let _mirror_down_addr = addr & 0b00100000_00000111;
                 todo!("PPU is not supported yet")
             }
-            PRG_ROM_START..=PRG_ROM_END => {
-                self.read_prg_rom(addr)
-            }
+            PRG_ROM_START..=PRG_ROM_END => self.read_prg_rom(addr),
             _ => {
                 println!("Ignoring mem access at {}", addr);
                 0
@@ -106,4 +104,3 @@ impl Mem for Bus {
         }
     }
 }
-
