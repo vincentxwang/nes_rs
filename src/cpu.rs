@@ -713,7 +713,7 @@ pub fn trace(cpu: &CPU) -> String {
     hex_dump.push(code);
 
     let (mem_addr, stored_value) = match ops.addressing_mode {
-        AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
+        AddressingMode::Immediate | AddressingMode::NoneAddressing | AddressingMode::Indirect => (0, 0),
         _ => {
             let addr = cpu.get_absolute_address(&ops.addressing_mode, begin.wrapping_add(1));
             (addr, cpu.mem_read(addr))
@@ -778,21 +778,7 @@ pub fn trace(cpu: &CPU) -> String {
 
             match ops.addressing_mode {
                 AddressingMode::NoneAddressing => {
-                    if ops.code == 0x6c {
-                        //jmp indirect
-                        let jmp_addr = if address & 0x00FF == 0x00FF {
-                            let lo = cpu.mem_read(address);
-                            let hi = cpu.mem_read(address & 0xFF00);
-                            (hi as u16) << 8 | (lo as u16)
-                        } else {
-                            cpu.mem_read_u16(address)
-                        };
-
-                        // let jmp_addr = cpu.mem_read_u16(address);
-                        format!("(${:04x}) = {:04x}", address, jmp_addr)
-                    } else {
-                        format!("${:04x}", address)
-                    }
+                    format!("${:04x}", address)
                 }
                 AddressingMode::Absolute => format!("${:04x} = {:02x}", mem_addr, stored_value),
                 AddressingMode::Absolute_X => format!(
@@ -803,6 +789,18 @@ pub fn trace(cpu: &CPU) -> String {
                     "${:04x},Y @ {:04x} = {:02x}",
                     address, mem_addr, stored_value
                 ),
+                AddressingMode::Indirect => {
+                    let jmp_addr = if address & 0x00FF == 0x00FF {
+                        let lo = cpu.mem_read(address);
+                        let hi = cpu.mem_read(address & 0xFF00);
+                        (hi as u16) << 8 | (lo as u16)
+                    } else {
+                        cpu.mem_read_u16(address)
+                    };
+
+                    // let jmp_addr = cpu.mem_read_u16(address);
+                    format!("(${:04x}) = {:04x}", address, jmp_addr)
+                },
                 _ => panic!(
                     "unexpected addressing mode {:?} has ops-len 3. code {:02x}",
                     ops.addressing_mode, ops.code

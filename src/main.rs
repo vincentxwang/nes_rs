@@ -1,6 +1,9 @@
 use nes_rs::{bus::Bus, cartridge::Cartridge, cpu::{trace, CPU}};
+use std::env;
 
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
+
     let bytes: Vec<u8> = std::fs::read("src/nestest.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
