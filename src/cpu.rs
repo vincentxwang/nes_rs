@@ -27,7 +27,7 @@ pub enum AddressingMode {
 
 // Only official opcodes are implemented
 // Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Operation {
     ADC,
     AND,
@@ -780,7 +780,14 @@ pub fn trace(cpu: &CPU) -> String {
                 AddressingMode::NoneAddressing => {
                     format!("${:04x}", address)
                 }
-                AddressingMode::Absolute => format!("${:04x} = {:02x}", mem_addr, stored_value),
+                AddressingMode::Absolute => {
+                    if ops.op == Operation::JMP {
+                        format!("${:04x}", mem_addr)
+                    } else {
+                        format!("${:04x} = {:02x}", mem_addr, stored_value)
+                    }
+
+                },
                 AddressingMode::Absolute_X => format!(
                     "${:04x},X @ {:04x} = {:02x}",
                     address, mem_addr, stored_value
