@@ -6,7 +6,7 @@ use core::fmt;
 use std::collections::HashMap;
 
 use crate::bus::Bus;
-use crate::opcodes;
+use crate::opcodes::{self, UNOFFICIAL_OPCODES};
 use crate::opcodes::CPU_OPS_CODES;
 
 #[derive(Debug)]
@@ -25,66 +25,16 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
-// Only official opcodes are implemented
-// Reference: https://www.nesdev.org/obelisk-6502-guide/reference.html
+// Reference (official): https://www.nesdev.org/obelisk-6502-guide/reference.html
+// Reference (unofficial): https://www.oxyron.de/html/opcodes02.html
 #[derive(Debug, PartialEq)]
 pub enum Operation {
-    ADC,
-    AND,
-    ASL,
-    BCC,
-    BCS,
-    BEQ,
-    BIT,
-    BMI,
-    BNE,
-    BPL,
-    BRK,
-    BVC,
-    BVS,
-    CLC,
-    CLD,
-    CLI,
-    CLV,
-    CMP,
-    CPX,
-    CPY,
-    DEC,
-    DEX,
-    DEY,
-    EOR,
-    INC,
-    INX,
-    INY,
-    JMP,
-    JSR,
-    LDA,
-    LDX,
-    LDY,
-    LSR,
-    NOP,
-    ORA,
-    PHA,
-    PHP,
-    PLA,
-    PLP,
-    ROL,
-    ROR,
-    RTI,
-    RTS,
-    SBC,
-    SEC,
-    SED,
-    SEI,
-    STA,
-    STX,
-    STY,
-    TAX,
-    TAY,
-    TSX,
-    TXA,
-    TXS,
-    TYA,
+    ADC, AND, ASL, BCC, BCS, BEQ, BIT, BMI, BNE, BPL, BRK, BVC, BVS, CLC,
+    CLD, CLI, CLV, CMP, CPX, CPY, DEC, DEX, DEY, EOR, INC, INX, INY, JMP,
+    JSR, LDA, LDX, LDY, LSR, NOP, ORA, PHA, PHP, PLA, PLP, ROL, ROR, RTI,
+    RTS, SBC, SEC, SED, SEI, STA, STX, STY, TAX, TAY, TSX, TXA, TXS, TYA,
+    // Unofficial opcodes
+    LAX, SAX, DCP, ISB, SLO, RLA, SRE, RRA
 }
 
 impl fmt::Display for Operation {
@@ -285,6 +235,11 @@ impl CPU {
         // We -2 because of the extra bytes added on to account for the length of the program
         // that we don't want.
         self.program_counter = target_address.wrapping_sub(2);
+    }
+
+    fn sax(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x & self.register_a);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -655,6 +610,10 @@ impl CPU {
                 Operation::CMP => self.compare(&opcode.addressing_mode, self.register_a),
                 Operation::CPX => self.compare(&opcode.addressing_mode, self.register_x),
                 Operation::CPY => self.compare(&opcode.addressing_mode, self.register_y),
+                Operation::DCP => {
+                    self.dec(&opcode.addressing_mode);
+                    self.compare(&opcode.addressing_mode, self.register_a);
+                }
                 Operation::DEC => self.dec(&opcode.addressing_mode),
                 Operation::DEX => self.dex(),
                 Operation::DEY => self.dey(),
@@ -662,8 +621,16 @@ impl CPU {
                 Operation::INC => self.inc(&opcode.addressing_mode),
                 Operation::INX => self.inx(),
                 Operation::INY => self.iny(),
+                Operation::ISB => {
+                    self.inc(&opcode.addressing_mode);
+                    self.sbc(&opcode.addressing_mode);
+                }
                 Operation::JMP => self.jmp(&opcode.addressing_mode),
                 Operation::JSR => self.jsr(),
+                Operation::LAX => {
+                    self.lda(&opcode.addressing_mode);
+                    self.tax();
+                },
                 Operation::LDA => self.lda(&opcode.addressing_mode),
                 Operation::LDX => self.ldx(&opcode.addressing_mode),
                 Operation::LDY => self.ldy(&opcode.addressing_mode),
@@ -676,15 +643,32 @@ impl CPU {
                 Operation::PLP => self.plp(),
                 Operation::ROL => self.rol(&opcode.addressing_mode),
                 Operation::ROR => self.ror(&opcode.addressing_mode),
+                Operation::RLA => {
+                    self.rol(&opcode.addressing_mode);
+                    self.and(&opcode.addressing_mode);
+                }
+                Operation::RRA => {
+                    self.ror(&opcode.addressing_mode);
+                    self.adc(&opcode.addressing_mode);
+                }
                 Operation::RTI => {
                     self.plp();
                     self.program_counter = self.stack_pop_u16();
                 }
                 Operation::RTS => self.program_counter = self.stack_pop_u16().wrapping_add(1),
+                Operation::SAX => self.sax(&opcode.addressing_mode),
                 Operation::SBC => self.sbc(&opcode.addressing_mode),
                 Operation::SEC => self.status.insert(CPUFlags::CARRY),
                 Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
                 Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
+                Operation::SLO => {
+                    self.asl(&opcode.addressing_mode);
+                    self.ora(&opcode.addressing_mode);
+                }
+                Operation::SRE => {
+                    self.lsr(&opcode.addressing_mode);
+                    self.eor(&opcode.addressing_mode);
+                }
                 Operation::STA => self.sta(&opcode.addressing_mode),
                 Operation::STX => self.stx(&opcode.addressing_mode),
                 Operation::STY => self.sty(&opcode.addressing_mode),
@@ -702,6 +686,8 @@ impl CPU {
     }
 }
 
+// An nestest-compatible tracer (https://www.qmtpro.com/~nes/misc/nestest.txt)
+// TODO: implement cycle accuracy
 pub fn trace(cpu: &CPU) -> String {
     let opscodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
 
@@ -822,11 +808,16 @@ pub fn trace(cpu: &CPU) -> String {
         .map(|z| format!("{:02x}", z))
         .collect::<Vec<String>>()
         .join(" ");
+    let operation_str = if UNOFFICIAL_OPCODES.contains(&ops.code) {
+        format!("*{}", ops.op.to_string())
+    } else {
+        ops.op.to_string()
+    };
     let asm_str = format!(
         "{:04x}  {:8} {: >4} {}",
         begin,
         hex_str,
-        ops.op.to_string(),
+        operation_str,
         tmp
     )
     .trim()

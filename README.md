@@ -10,11 +10,11 @@ A faithful Rust-based emulation of the [Nintendo Entertainment System](https://e
 
 - CPU
     - [X] Official instructions
-    - [ ] BUS
-    - [ ] Unofficial instructions
+    - [X] BUS
+    - [X] Unofficial instructions
     - [ ] Cycle accuracy
 - Cartridges
-    - [ ] iNES format
+    - [X] iNES format
 - PPU
     - [ ] 
 - UI
