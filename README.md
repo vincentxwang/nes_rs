@@ -1,6 +1,6 @@
 # nes_rs
 
-A faithful Rust-based emulation of the [Nintendo Entertainment System](https://en.wikipedia.org/wiki/Nintendo_Entertainment_System).
+A performant Rust-based emulation of the [Nintendo Entertainment System](https://en.wikipedia.org/wiki/Nintendo_Entertainment_System).
 
 # Features
 
@@ -16,7 +16,10 @@ A faithful Rust-based emulation of the [Nintendo Entertainment System](https://e
 - Cartridges
     - [X] iNES format
 - PPU
-    - [ ] 
+    - [ ] PPU registers
+    - [ ] NMI interrupt
+    - [ ] CHR ROM tiles
+    - [ ] Static screen
 - UI
     - [ ] Controller mappings
 - Testing/docs

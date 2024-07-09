@@ -106,8 +106,10 @@ impl Mem for Bus {
                 let mirror_down_addr = addr & 0b111_1111_1111;
                 self.cpu_wram[mirror_down_addr as usize] = data;
             }
-            
+
             0x2000 => self.ppu.write_to_controller(data),
+
+            0x2001 => self.ppu.write_to_mask(data),
 
             0x2006 => self.ppu.write_to_ppu_addr(data),
             
