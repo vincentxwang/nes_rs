@@ -1,12 +1,13 @@
+use crate::cartridge::Mirroring;
 pub struct PPU {
     pub chr_rom: Vec<u8>,
-    pub palette_table: [u8; 32],
-    pub vram: [u8; 2048],
-    pub oam_data: [u8; 256],
+    pub palette_table: [u8; PALETTE_TABLE_SIZE],
+    pub vram: [u8; VRAM_SIZE],
+    pub oam_data: [u8; OAM_DATA_SIZE],
  
     pub controller: ControlRegister,
     pub ppu_addr: PPUADDR,
-    // pub mirroring: Mirroring,
+    pub mirroring: Mirroring,
 }
 
 bitflags! {
@@ -53,13 +54,63 @@ impl ControlRegister {
     }
 }
 
+// Memory map constants.
+const CHR_ROM_START: u16 = 0x0000;
+const CHR_ROM_END: u16 = 0x1fff;
+const VRAM_START: u16 = 0x2000;
+const VRAM_END: u16 = 0x2fff;
+const UNUSED_START: u16 = 0x3000;
+const UNUSED_END: u16 = 0x3eff;
+const PALETTE_TABLE_START: u16 = 0x3f00;
+const PALETTE_TABLE_END: u16 = 0x3fff;
+
+const NAMETABLE_SIZE: u16 = 0x0400;
+
+// Storage size constants.
+const PALETTE_TABLE_SIZE: usize = 32;
+const VRAM_SIZE: usize = 2048;
+const OAM_DATA_SIZE: usize = 256;
+
+
 impl PPU {
-    fn write_to_ppu_addr(&mut self, value: u8) {
+    pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
+        PPU {
+            chr_rom,
+            mirroring,
+            controller: ControlRegister::new(),
+            palette_table: [0; PALETTE_TABLE_SIZE],
+            vram: [0; VRAM_SIZE],
+            oam_data: [0; OAM_DATA_SIZE],
+            ppu_addr: PPUADDR::new(),
+        }
+    }
+    pub fn write_to_ppu_addr(&mut self, value: u8) {
         self.ppu_addr.update(value);
     }
 
-    fn write_to_controller(&mut self, value: u8) {
+    pub fn write_to_controller(&mut self, value: u8) {
         self.controller = ControlRegister::from_bits_truncate(value);
+    }
+
+    pub fn write_to_data(&mut self, value: u8) {
+        let addr = self.ppu_addr.get();
+        match addr {
+            CHR_ROM_START..=CHR_ROM_END => panic!("Attemting to write to CHR ROM space {}", addr),
+            VRAM_START..=VRAM_END => self.vram[self.mirror_vram_addr(addr) as usize] = value,
+            UNUSED_START..=UNUSED_END => panic!("Attempting to write to unused space {}", addr),
+            
+            // $3f10, $3f14, $3f18, $3f1c are mirrors of $3f00, $3f04, $3f08, $3f0c respectively
+            // Reference: https://www.nesdev.org/wiki/PPU_palettes
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                self.palette_table[(addr - 0x10 - PALETTE_TABLE_START) as usize] = value;
+            }
+
+            PALETTE_TABLE_START..=PALETTE_TABLE_END => {
+                self.palette_table[(addr - PALETTE_TABLE_START) as usize] = value;
+            }
+
+            _ => panic!("Unexpected access to {}", addr),
+        }
     }
 
     fn increment_vram_addr(&mut self) {
@@ -70,19 +121,45 @@ impl PPU {
         }
     }
 
-    fn read_data(&mut self) -> u8 {
+    pub fn read_data(&mut self) -> u8 {
         let addr = self.ppu_addr.get();
         self.increment_vram_addr();
 
         match addr {
-            0..=0x1fff => todo!("read from chr_rom"),
-            0x2000..=0x2fff => todo!("read from RAM"),
-            0x3000..=0x3eff => panic!("addr space 0x3000 ~ 0x3eff should not be read from, requested = {}", addr),
-            0x3f00..=0x3fff => 
-            {
-                self.palette_table[(addr - 0x3f00) as usize]
-            }
+            CHR_ROM_START..=CHR_ROM_START => todo!("read from chr_rom"),
+            VRAM_START..=VRAM_END => todo!("read from RAM"),
+            UNUSED_START..=UNUSED_END => panic!("addr space 0x3000 ~ 0x3eff should not be read from, requested = {}", addr),
+            PALETTE_TABLE_START..=PALETTE_TABLE_END => 
+                {
+                    self.palette_table[(addr - PALETTE_TABLE_START) as usize]
+                }
             _ => panic!("unexpected access to mirrored space {}", addr)
+        }
+    }
+    
+    // Nametables:
+    // [ 0 ] [ 1 ]
+    // [ 2 ] [ 3 ]
+    //
+    // Horizontal: 
+    // [ A ] [ a ]
+    // [ B ] [ b ]
+    //
+    // Vertical: 
+    // [ A ] [ B ]
+    // [ a ] [ b ]
+    //
+    // Maps $3000-$3eff into VRAM.
+    pub fn mirror_vram_addr(&self, addr: u16) -> u16 {
+        let mirrored_vram = addr & VRAM_START;
+        let vram_index = mirrored_vram - VRAM_START;
+        let name_table = vram_index / NAMETABLE_SIZE;
+        match (&self.mirroring, name_table) {
+            (Mirroring::Vertical, 2) | (Mirroring::Vertical, 3) => vram_index - (2 * NAMETABLE_SIZE),
+            (Mirroring::Horizontal, 2) => vram_index - NAMETABLE_SIZE,
+            (Mirroring::Horizontal, 1) => vram_index - NAMETABLE_SIZE,
+            (Mirroring::Horizontal, 3) => vram_index - (2 * NAMETABLE_SIZE),
+            _ => vram_index,
         }
     }
 }
