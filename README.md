@@ -20,8 +20,11 @@ A performant Rust-based emulation of the [Nintendo Entertainment System](https:/
     - [ ] NMI interrupt
     - [ ] CHR ROM tiles
     - [ ] Static screen
+    - [ ] Scrolling
 - UI
     - [ ] Controller mappings
+- APU
+    - [ ] ?
 - Testing/docs
     - [X] 6502 test suite
     - [ ] Docs

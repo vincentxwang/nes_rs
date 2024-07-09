@@ -301,6 +301,8 @@ impl CPU {
 
             // -1 because we already incremented program_counter to account for the instruction
             self.program_counter = self.program_counter.wrapping_add((opcode.bytes - 1) as u16);
+
+            self.bus.tick(opcode.cycles);
         }
     }
 }

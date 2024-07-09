@@ -45,6 +45,7 @@ pub struct Bus {
     cpu_wram: [u8; WRAM_SIZE],
     prg_rom: Vec<u8>,
     ppu: PPU,
+    cycles: usize,
 }
 
 const WRAM_SIZE: usize = 0x0800; // 2K Work
@@ -55,7 +56,13 @@ impl Bus {
             cpu_wram: [0; WRAM_SIZE],
             prg_rom: cartridge.prg_rom,
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
+            cycles: 0,
         }
+    }
+
+    pub fn tick(&mut self, cycles: usize) {
+        self.cycles += cycles;
+        self.ppu.tick(cycles * 3);
     }
 
     fn read_prg_rom(&self, mut addr: u16) -> u8 {

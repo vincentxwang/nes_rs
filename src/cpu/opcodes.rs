@@ -5,7 +5,7 @@ pub struct OpCode {
     pub code: u8,
     pub op: Operation,
     pub bytes: u8,
-    pub cycles: u8,
+    pub cycles: usize,
     pub addressing_mode: AddressingMode,
 }
 
@@ -14,7 +14,7 @@ impl OpCode {
         code: u8,
         op: Operation,
         bytes: u8,
-        cycles: u8,
+        cycles: usize,
         addressing_mode: AddressingMode,
     ) -> Self {
         OpCode {

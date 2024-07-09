@@ -6,6 +6,7 @@ use registers::controller::PPUCTRL;
 use registers::mask::PPUMASK;
 use registers::addr::PPUADDR;
 use registers::scroll::PPUSCROLL;
+use registers::status::PPUSTATUS;
 
 pub mod registers;
 
@@ -38,6 +39,10 @@ pub struct PPU {
     pub ppu_mask: PPUMASK,
     pub oam_addr: u8,
     pub ppu_scroll: PPUSCROLL,
+    pub status: PPUSTATUS,
+
+    pub scanline: u16,
+    pub cycles: usize,
 }
 
 impl PPU {
@@ -52,9 +57,34 @@ impl PPU {
             ppu_addr: PPUADDR::new(),
             ppu_mask: PPUMASK::new(),
             ppu_scroll: PPUSCROLL::new(),
+            status: PPUSTATUS::new(),
             oam_addr: 0,
+
+            scanline: 0,
+            cycles: 0,
         }
     }
+
+    pub fn tick(&mut self, cycles: usize) -> bool {
+        self.cycles += cycles as usize;
+        if self.cycles >= 341 {
+            self.cycles = self.cycles - 341;
+            self.scanline += 1;
+
+            if self.scanline == 241 && self.controller.contains(PPUCTRL::GENERATE_NMI) {
+                self.status.set(PPUSTATUS::VBLANK_STARTED, true);
+                todo!("trigger NMI interrupt");
+            };
+
+            if self.scanline >= 262 {
+                self.scanline = 0;
+                self.status.set(PPUSTATUS::VBLANK_STARTED, false);
+                return true;
+            }
+        };
+        return false
+    }
+
     pub fn write_to_ppu_addr(&mut self, value: u8) {
         self.ppu_addr.update(value);
     }
