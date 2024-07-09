@@ -5,6 +5,7 @@ use crate::cartridge::Mirroring;
 use registers::controller::PPUCTRL;
 use registers::mask::PPUMASK;
 use registers::addr::PPUADDR;
+use registers::scroll::PPUSCROLL;
 
 pub mod registers;
 
@@ -35,6 +36,8 @@ pub struct PPU {
     pub ppu_addr: PPUADDR,
     pub mirroring: Mirroring,
     pub ppu_mask: PPUMASK,
+    pub oam_addr: u8,
+    pub ppu_scroll: PPUSCROLL,
 }
 
 impl PPU {
@@ -48,6 +51,8 @@ impl PPU {
             oam_data: [0; OAM_DATA_SIZE],
             ppu_addr: PPUADDR::new(),
             ppu_mask: PPUMASK::new(),
+            ppu_scroll: PPUSCROLL::new(),
+            oam_addr: 0,
         }
     }
     pub fn write_to_ppu_addr(&mut self, value: u8) {
@@ -60,6 +65,19 @@ impl PPU {
 
     pub fn write_to_mask(&mut self, value: u8) {
         self.ppu_mask = PPUMASK::from_bits_truncate(value);
+    }
+
+    pub fn write_to_scroll(&mut self, value: u8) {
+        self.ppu_scroll.write(value);
+    }
+
+    pub fn write_to_oam_data(&mut self, value: u8) {
+        self.oam_data[self.oam_addr as usize] = value;
+        self.oam_addr = self.oam_addr.wrapping_add(1);
+    }
+
+    pub fn write_to_oam_addr(&mut self, value: u8) {
+        self.oam_addr = value;
     }
 
     fn increment_vram_addr(&mut self) {
