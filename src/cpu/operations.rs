@@ -28,16 +28,22 @@ impl fmt::Display for Operation {
 impl CPU {
     // Add with carry
     pub fn adc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let value = self.mem_read(addr);
         self.add_to_register_a(value);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Logical AND
     pub fn and(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
         self.update_zero_and_negative_flags(self.register_a);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Arithmetic shift left
@@ -49,7 +55,7 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = Some(self.get_operand_address(mode));
+                addr = Some(self.get_operand_address(mode).0);
                 data = self.mem_read(addr.unwrap());
             }
         }
@@ -64,7 +70,7 @@ impl CPU {
 
     // Bit test
     pub fn bit(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         let res = self.register_a & data;
 
@@ -76,30 +82,44 @@ impl CPU {
     // Branches if condition = true
     pub fn branch(&mut self, condition: bool) {
         if condition {
+            self.bus.tick(1);
+
+            let base = self.program_counter;
+            // NES converts this address into a signed 8-bit integer
             let jump: i8 = self.mem_read(self.program_counter) as i8;
-            let jump_addr = self.program_counter.wrapping_add(jump as u16);
+            let jump_addr = base.wrapping_add(jump as u16);
 
             self.program_counter = jump_addr;
+
+            if CPU::page_cross(base, jump_addr) {
+                self.bus.tick(1);
+            }
         }
     }
 
     pub fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         self.status.set(CPUFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Exclusive OR
     pub fn eor(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         self.register_a ^= self.mem_read(addr);
-        self.update_zero_and_negative_flags(self.register_a); // Unsure... documentation is too vague
+        self.update_zero_and_negative_flags(self.register_a);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Decrement memory
     pub fn dec(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let val = self.mem_read(addr).wrapping_sub(1);
 
         self.mem_write(addr, val);
@@ -154,53 +174,62 @@ impl CPU {
 
     // (Unofficial) Store bitwise AND of accumulator and X
     pub fn sax(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_x & self.register_a);
     }
 
     // Store accumulator
     pub fn sta(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
     }
 
     // Store X register
     pub fn stx(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_x);
     }
 
     // Store Y register
     pub fn sty(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_y);
     }
 
     // Load into accumulator
     pub fn lda(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.register_a = val;
         self.update_zero_and_negative_flags(self.register_a);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Load into X register
     pub fn ldx(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.register_x = val;
         self.update_zero_and_negative_flags(self.register_x);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Load into Y register
     pub fn ldy(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.register_y = val;
         self.update_zero_and_negative_flags(self.register_y);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Logical shift right
@@ -212,7 +241,7 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = Some(self.get_operand_address(mode));
+                addr = Some(self.get_operand_address(mode).0);
                 data = self.mem_read(addr.unwrap());
             }
         }
@@ -227,11 +256,14 @@ impl CPU {
 
     // Logical inclusive OR
     pub fn ora(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.register_a |= val;
         self.update_zero_and_negative_flags(self.register_a);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Pull from stack and into accumulator
@@ -249,9 +281,12 @@ impl CPU {
     }
 
     pub fn sbc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     pub fn tax(&mut self) {
@@ -280,7 +315,7 @@ impl CPU {
     }
 
     pub fn inc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.mem_write(addr, val.wrapping_add(1));
@@ -306,7 +341,7 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = Some(self.get_operand_address(mode));
+                addr = Some(self.get_operand_address(mode).0);
                 data = self.mem_read(addr.unwrap());
             }
         }
@@ -338,7 +373,7 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = Some(self.get_operand_address(mode));
+                addr = Some(self.get_operand_address(mode).0);
                 data = self.mem_read(addr.unwrap());
             }
         }
