@@ -13,7 +13,7 @@ use nes_rs::cpu::{trace, CPU};
 #[test]
 fn nestest() {
 
-    let bytes: Vec<u8> = std::fs::read("src/nestest.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("tests/nestest.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
     let bus = Bus::new(rom);
@@ -32,7 +32,7 @@ fn nestest() {
             return
         } else {
             // get the string without cycle/ppu information
-            assert_eq!(&line.unwrap()[..73], trace(cpu));
+            assert_eq!(&line.unwrap()[..73], trace::trace(cpu));
         }
     });
 }
