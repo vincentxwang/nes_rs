@@ -57,7 +57,7 @@ impl fmt::Display for Operation {
 // +--------- Negative
 bitflags! {
     pub struct CPUFlags: u8 {
-        const CARRY             = 1;
+        const CARRY             = 1 << 0;
         const ZERO              = 1 << 1;
         const INTERRUPT_DISABLE = 1 << 2;
         const DECIMAL_MODE      = 1 << 3;
@@ -122,39 +122,43 @@ impl Mem for CPU {
 // CPU instruction functions
 
 impl CPU {
-    // Add with carry.
+    // Add with carry
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
         self.add_to_register_a(value);
     }
 
+    // Logical AND
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    // Arithmetic shift left
     fn asl(&mut self, mode: &AddressingMode) {
         let mut data;
-        let mut addr = 0; // Dummy
-                          // AddressingNone => Accumulator
+        let mut addr: Option<u16> = None;
+        // AddressingNone corresponds to shifting the accumulator left, and addr = None in this case.
+
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = self.get_operand_address(mode);
-                data = self.mem_read(addr);
+                addr = Some(self.get_operand_address(mode));
+                data = self.mem_read(addr.unwrap());
             }
         }
         self.status.set(CPUFlags::CARRY, data >> 7 == 1);
         data <<= 1;
         match mode {
             AddressingMode::NoneAddressing => self.register_a = data,
-            _ => self.mem_write(addr, data),
+            _ => self.mem_write(addr.unwrap(), data),
         }
         self.update_zero_and_negative_flags(data);
     }
 
+    // Bit test
     fn bit(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
@@ -165,6 +169,7 @@ impl CPU {
         self.status.set(CPUFlags::OVERFLOW, data & 0b01000000 > 0);
     }
 
+    // Branches if condition = true
     fn branch(&mut self, condition: bool) {
         if condition {
             let jump: i8 = self.mem_read(self.program_counter) as i8;
@@ -181,12 +186,14 @@ impl CPU {
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
+    // Exclusive OR
     fn eor(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.register_a ^= self.mem_read(addr);
         self.update_zero_and_negative_flags(self.register_a); // Unsure... documentation is too vague
     }
 
+    // Decrement memory
     fn dec(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr).wrapping_sub(1);
@@ -195,20 +202,23 @@ impl CPU {
         self.update_zero_and_negative_flags(val);
     }
 
+    // Decrement X register
     fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
         self.update_zero_and_negative_flags(self.register_x)
     }
 
+    // Decrement Y register
     fn dey(&mut self) {
         self.register_y = self.register_y.wrapping_sub(1);
         self.update_zero_and_negative_flags(self.register_y)
     }
 
+    // Jump
     fn jmp(&mut self, mode: &AddressingMode) {
         let mem_address = self.mem_read_u16(self.program_counter);
 
-        // We -2 because of the extra bytes added on to account for the length of the program
+        // We -2 because of there are extra bytes added on later that account for the length of the JMP opcode and address
         // that we don't want.
         match mode {
             AddressingMode::Absolute => self.program_counter = mem_address.wrapping_sub(2),
@@ -229,34 +239,40 @@ impl CPU {
         }
     }
 
+    // Jump to subroutine
     fn jsr(&mut self) {
         self.stack_push_u16(self.program_counter + 2 - 1);
         let target_address = self.mem_read_u16(self.program_counter);
-        // We -2 because of the extra bytes added on to account for the length of the program
+        // We -2 because of there are extra bytes added on later that account for the length of the JMP opcode and address
         // that we don't want.
         self.program_counter = target_address.wrapping_sub(2);
     }
 
+    // (Unofficial) Store bitwise AND of accumulator and X
     fn sax(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_x & self.register_a);
     }
 
+    // Store accumulator
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
     }
 
+    // Store X register
     fn stx(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_x);
     }
 
+    // Store Y register
     fn sty(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_y);
     }
 
+    // Load into accumulator
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -265,6 +281,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    // Load into X register
     fn ldx(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -273,6 +290,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    // Load into Y register
     fn ldy(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -281,26 +299,29 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    // Logical shift right
     fn lsr(&mut self, mode: &AddressingMode) {
         let mut data;
-        let mut addr = 0; // Dummy
-                          // AddressingNone => Accumulator
+        let mut addr : Option<u16> = None; 
+        // AddressingNone corresponds to shifting the accumulator left, and addr = None in this case.
+
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = self.get_operand_address(mode);
-                data = self.mem_read(addr);
+                addr = Some(self.get_operand_address(mode));
+                data = self.mem_read(addr.unwrap());
             }
         }
         self.status.set(CPUFlags::CARRY, data & 1 == 1);
         data >>= 1;
         match mode {
             AddressingMode::NoneAddressing => self.register_a = data,
-            _ => self.mem_write(addr, data),
+            _ => self.mem_write(addr.unwrap(), data),
         }
         self.update_zero_and_negative_flags(data);
     }
 
+    // Logical inclusive OR
     fn ora(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -309,11 +330,13 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    // Pull from stack and into accumulator
     fn pla(&mut self) {
         let data = self.stack_pop();
         self.set_register_a(data);
     }
 
+    // Pull from stack and into processor flags
     fn plp(&mut self) {
         let data = self.stack_pop();
         // ignore break flag and bit 5
@@ -370,43 +393,17 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn ror(&mut self, mode: &AddressingMode) {
-        let mut addr = 0;
+        // Rotate left
+    fn rol(&mut self, mode: &AddressingMode) {0;
         let mut data;
+        let mut addr: Option<u16> = None;
+        // AddressingNone corresponds to shifting the accumulator left, and addr = None in this case.
+
         match mode {
             AddressingMode::NoneAddressing => data = self.register_a,
             _ => {
-                addr = self.get_operand_address(mode);
-                data = self.mem_read(addr);
-            }
-        }
-
-        let old_carry = self.status.contains(CPUFlags::CARRY);
-        self.status.set(CPUFlags::CARRY, data & 1 == 1);
-        data >>= 1;
-
-        if old_carry {
-            data |= 0b10000000;
-        }
-
-        match mode {
-            AddressingMode::NoneAddressing => self.set_register_a(data),
-            _ => {
-                self.mem_write(addr, data);
-                self.status.set(CPUFlags::NEGATIVE, data >> 7 == 1);
-                self.status.set(CPUFlags::ZERO, data == 0);
-            }
-        }
-    }
-
-    fn rol(&mut self, mode: &AddressingMode) {
-        let mut addr = 0;
-        let mut data;
-        match mode {
-            AddressingMode::NoneAddressing => data = self.register_a,
-            _ => {
-                addr = self.get_operand_address(mode);
-                data = self.mem_read(addr);
+                addr = Some(self.get_operand_address(mode));
+                data = self.mem_read(addr.unwrap());
             }
         }
 
@@ -421,7 +418,39 @@ impl CPU {
         match mode {
             AddressingMode::NoneAddressing => self.set_register_a(data),
             _ => {
-                self.mem_write(addr, data);
+                self.mem_write(addr.unwrap(), data);
+                self.status.set(CPUFlags::NEGATIVE, data >> 7 == 1);
+                self.status.set(CPUFlags::ZERO, data == 0);
+            }
+        }
+    }
+
+    // Rotate right
+    fn ror(&mut self, mode: &AddressingMode) {
+        let mut data;
+        let mut addr: Option<u16> = None;
+        // AddressingNone corresponds to shifting the accumulator left, and addr = None in this case.
+
+        match mode {
+            AddressingMode::NoneAddressing => data = self.register_a,
+            _ => {
+                addr = Some(self.get_operand_address(mode));
+                data = self.mem_read(addr.unwrap());
+            }
+        }
+
+        let old_carry = self.status.contains(CPUFlags::CARRY);
+        self.status.set(CPUFlags::CARRY, data & 1 == 1);
+        data >>= 1;
+
+        if old_carry {
+            data |= 0b10000000;
+        }
+
+        match mode {
+            AddressingMode::NoneAddressing => self.set_register_a(data),
+            _ => {
+                self.mem_write(addr.unwrap(), data);
                 self.status.set(CPUFlags::NEGATIVE, data >> 7 == 1);
                 self.status.set(CPUFlags::ZERO, data == 0);
             }
@@ -438,7 +467,7 @@ impl CPU {
             bus,
             program_counter: 0,
             stack_pointer: STACK_RESET,
-            // interrupt distable and negative initialized
+            // Interrupt disable (bit 2) and the unused (bit 5) initialized by default
             status: CPUFlags::from_bits_truncate(0b100100),
         }
     }
@@ -538,7 +567,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    /// note: ignoring decimal mode
+    /// note: NES ignores decimal mode, unlike most 6502 processors
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
     fn add_to_register_a(&mut self, data: u8) {
         let sum = self.register_a as u16
@@ -809,7 +838,7 @@ pub fn trace(cpu: &CPU) -> String {
         .collect::<Vec<String>>()
         .join(" ");
     let operation_str = if UNOFFICIAL_OPCODES.contains(&ops.code) {
-        format!("*{}", ops.op.to_string())
+        format!("*{}", ops.op)
     } else {
         ops.op.to_string()
     };
@@ -832,9 +861,6 @@ pub fn trace(cpu: &CPU) -> String {
 
 #[cfg(test)]
 mod test {
-    
-    
-
     // #[test]
     // fn test_0xa9_lda_immediate_load_data() {
     //     let cart = test::create_test_cartridge(&mut vec![0xa9, 0x05, 0x00]);

@@ -1,4 +1,5 @@
 //! This is a test based on Kevin Horton's NES CPU test here: https://www.qmtpro.com/~nes/misc/nestest.txt
+//! nestestmaster.log is the expected output 
 //! The last few lines seem to deal with the I/O register and have been removed.
 //! Cycle and PPU afe NOT implemented yet.
 
@@ -30,6 +31,7 @@ fn nestest() {
         if line.is_none() {
             return
         } else {
+            // get the string without cycle/ppu information
             assert_eq!(&line.unwrap()[..73], trace(cpu));
         }
     });
