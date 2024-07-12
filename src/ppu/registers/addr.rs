@@ -1,3 +1,7 @@
+//! Struct for the PPU address register ($2006)
+//! Reference: https://www.nesdev.org/wiki/PPU_registers#PPUADDR
+//! Note that the PPU data register ($2007) is implemented as `PPU::write_data()`
+
 pub struct PPUADDR {
     // high byte, then low byte
     value: (u8, u8),

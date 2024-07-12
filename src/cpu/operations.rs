@@ -9,6 +9,7 @@ use crate::cpu::Mem;
 use crate::cpu::CPUFlags;
 
 #[derive(Debug, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum Operation {
     ADC, AND, ASL, BCC, BCS, BEQ, BIT, BMI, BNE, BPL, BRK, BVC, BVS, CLC,
     CLD, CLI, CLV, CMP, CPX, CPY, DEC, DEX, DEY, EOR, INC, INX, INY, JMP,
@@ -27,21 +28,23 @@ impl fmt::Display for Operation {
 
 impl CPU {
     // Add with carry
-    pub fn adc(&mut self, mode: &AddressingMode) {
+    // adc_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn adc(&mut self, mode: &AddressingMode, adc_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let value = self.mem_read(addr);
         self.add_to_register_a(value);
-        if page_cross {
+        if page_cross && adc_page_cross {
             self.bus.tick(1);
         }
     }
 
     // Logical AND
-    pub fn and(&mut self, mode: &AddressingMode) {
+    // and_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn and(&mut self, mode: &AddressingMode, and_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         self.register_a &= self.mem_read(addr);
         self.update_zero_and_negative_flags(self.register_a);
-        if page_cross {
+        if page_cross && and_page_cross {
             self.bus.tick(1);
         }
     }
@@ -91,28 +94,34 @@ impl CPU {
 
             self.program_counter = jump_addr;
 
-            if CPU::page_cross(base, jump_addr) {
+            // Some strange things here -- this implementation adds the opcode length to PC AFTER performing the operation,
+            // but this happens before on an NES. So we add the operation length (2) to the base, and we also add 1 to jump_addr
+            // to retrieve our final address. 
+            if CPU::page_cross(base.wrapping_add(2), jump_addr.wrapping_add(1)) {
                 self.bus.tick(1);
             }
         }
     }
 
-    pub fn compare(&mut self, mode: &AddressingMode, compare_with: u8) {
+    // Compare.
+    // cmp_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn compare(&mut self, mode: &AddressingMode, compare_with: u8, cmp_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         self.status.set(CPUFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
-        if page_cross {
+        if page_cross && cmp_page_cross {
             self.bus.tick(1);
         }
     }
 
     // Exclusive OR
-    pub fn eor(&mut self, mode: &AddressingMode) {
+    // eor_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn eor(&mut self, mode: &AddressingMode, eor_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         self.register_a ^= self.mem_read(addr);
         self.update_zero_and_negative_flags(self.register_a);
-        if page_cross {
+        if page_cross && eor_page_cross {
             self.bus.tick(1);
         }
     }
@@ -254,14 +263,22 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
+    pub fn nop(&mut self, mode: &AddressingMode) {
+        let (_, page_cross) = self.get_operand_address(mode);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
+    }
     // Logical inclusive OR
-    pub fn ora(&mut self, mode: &AddressingMode) {
+    // ora_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn ora(&mut self, mode: &AddressingMode, ora_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
 
         self.register_a |= val;
         self.update_zero_and_negative_flags(self.register_a);
-        if page_cross {
+        if page_cross && ora_page_cross {
             self.bus.tick(1);
         }
     }
@@ -280,11 +297,12 @@ impl CPU {
             CPUFlags::from_bits_retain((self.status.bits() & 0b0011_0000) | (data & 0b1100_1111));
     }
 
-    pub fn sbc(&mut self, mode: &AddressingMode) {
+    // sbc_page_cross is true if we want to tick for the page cross that may happen.
+    pub fn sbc(&mut self, mode: &AddressingMode, sbc_page_cross: bool) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
-        if page_cross {
+        if page_cross && sbc_page_cross {
             self.bus.tick(1);
         }
     }
@@ -333,7 +351,7 @@ impl CPU {
     }
 
         // Rotate left
-    pub fn rol(&mut self, mode: &AddressingMode) {0;
+    pub fn rol(&mut self, mode: &AddressingMode) {
         let mut data;
         let mut addr: Option<u16> = None;
         // AddressingNone corresponds to shifting the accumulator left, and addr = None in this case.

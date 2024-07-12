@@ -66,9 +66,9 @@ impl PPU {
     }
 
     pub fn tick(&mut self, cycles: usize) -> bool {
-        self.cycles += cycles as usize;
+        self.cycles += cycles;
         if self.cycles >= 341 {
-            self.cycles = self.cycles - 341;
+            self.cycles -= 341;
             self.scanline += 1;
 
             if self.scanline == 241 && self.controller.contains(PPUCTRL::GENERATE_NMI) {
@@ -82,7 +82,8 @@ impl PPU {
                 return true;
             }
         };
-        return false
+
+        false
     }
 
     pub fn write_to_ppu_addr(&mut self, value: u8) {

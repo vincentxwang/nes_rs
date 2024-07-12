@@ -1,5 +1,4 @@
 //! An nes_test-compatible tracer (https://www.qmtpro.com/~nes/misc/nestest.txt)
-//! 
 
 use std::collections::HashMap;
 use crate::cpu::CPU;
@@ -9,8 +8,7 @@ use crate::cpu::opcodes::{self, UNOFFICIAL_OPCODES};
 
 use super::Mem;
 
-
-// TODO: implement cycle accuracy
+// TODO: add in PPU
 pub fn trace(cpu: &mut CPU) -> String {
     let opscodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
 
@@ -147,8 +145,8 @@ pub fn trace(cpu: &mut CPU) -> String {
     .to_string();
 
     format!(
-        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
-        asm_str, cpu.register_a, cpu.register_x, cpu.register_y, cpu.status, cpu.stack_pointer,
+        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x} CYC:{}",
+        asm_str, cpu.register_a, cpu.register_x, cpu.register_y, cpu.status, cpu.stack_pointer, cpu.bus.cycles
     )
     .to_ascii_uppercase()
 }

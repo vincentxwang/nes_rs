@@ -12,7 +12,7 @@ A performant Rust-based emulation of the [Nintendo Entertainment System](https:/
     - [X] Official instructions
     - [X] BUS
     - [X] Unofficial instructions
-    - [ ] Cycle accuracy
+    - [X] Cycle accuracy
 - Cartridges
     - [X] iNES format
 - PPU

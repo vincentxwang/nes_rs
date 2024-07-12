@@ -198,7 +198,6 @@ impl CPU {
 
         loop {
             callback(self);
-
             let code = self.mem_read(self.program_counter);
             self.program_counter = self.program_counter.wrapping_add(1);
 
@@ -209,8 +208,8 @@ impl CPU {
                 .unwrap_or_else(|| panic!("Invalid code {}", code));
 
             match opcode.op {
-                Operation::ADC => self.adc(&opcode.addressing_mode),
-                Operation::AND => self.and(&opcode.addressing_mode),
+                Operation::ADC => self.adc(&opcode.addressing_mode, true),
+                Operation::AND => self.and(&opcode.addressing_mode, true),
                 Operation::ASL => self.asl(&opcode.addressing_mode),
                 Operation::BCC => self.branch(!self.status.contains(CPUFlags::CARRY)),
                 Operation::BCS => self.branch(self.status.contains(CPUFlags::CARRY)),
@@ -226,23 +225,23 @@ impl CPU {
                 Operation::CLD => self.status.remove(CPUFlags::DECIMAL_MODE),
                 Operation::CLI => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
                 Operation::CLV => self.status.remove(CPUFlags::OVERFLOW),
-                Operation::CMP => self.compare(&opcode.addressing_mode, self.register_a),
-                Operation::CPX => self.compare(&opcode.addressing_mode, self.register_x),
-                Operation::CPY => self.compare(&opcode.addressing_mode, self.register_y),
+                Operation::CMP => self.compare(&opcode.addressing_mode, self.register_a, true),
+                Operation::CPX => self.compare(&opcode.addressing_mode, self.register_x, true),
+                Operation::CPY => self.compare(&opcode.addressing_mode, self.register_y, true),
                 Operation::DCP => {
                     self.dec(&opcode.addressing_mode);
-                    self.compare(&opcode.addressing_mode, self.register_a);
+                    self.compare(&opcode.addressing_mode, self.register_a, false);
                 }
                 Operation::DEC => self.dec(&opcode.addressing_mode),
                 Operation::DEX => self.dex(),
                 Operation::DEY => self.dey(),
-                Operation::EOR => self.eor(&opcode.addressing_mode),
+                Operation::EOR => self.eor(&opcode.addressing_mode, true),
                 Operation::INC => self.inc(&opcode.addressing_mode),
                 Operation::INX => self.inx(),
                 Operation::INY => self.iny(),
                 Operation::ISB => {
                     self.inc(&opcode.addressing_mode);
-                    self.sbc(&opcode.addressing_mode);
+                    self.sbc(&opcode.addressing_mode, false);
                 }
                 Operation::JMP => self.jmp(&opcode.addressing_mode),
                 Operation::JSR => self.jsr(),
@@ -254,8 +253,8 @@ impl CPU {
                 Operation::LDX => self.ldx(&opcode.addressing_mode),
                 Operation::LDY => self.ldy(&opcode.addressing_mode),
                 Operation::LSR => self.lsr(&opcode.addressing_mode),
-                Operation::NOP => (),
-                Operation::ORA => self.ora(&opcode.addressing_mode),
+                Operation::NOP => self.nop(&opcode.addressing_mode),
+                Operation::ORA => self.ora(&opcode.addressing_mode, true),
                 Operation::PHA => self.stack_push(self.register_a),
                 Operation::PHP => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
                 Operation::PLA => self.pla(),
@@ -264,11 +263,11 @@ impl CPU {
                 Operation::ROR => self.ror(&opcode.addressing_mode),
                 Operation::RLA => {
                     self.rol(&opcode.addressing_mode);
-                    self.and(&opcode.addressing_mode);
+                    self.and(&opcode.addressing_mode, false);
                 }
                 Operation::RRA => {
                     self.ror(&opcode.addressing_mode);
-                    self.adc(&opcode.addressing_mode);
+                    self.adc(&opcode.addressing_mode, false);
                 }
                 Operation::RTI => {
                     self.plp();
@@ -276,17 +275,17 @@ impl CPU {
                 }
                 Operation::RTS => self.program_counter = self.stack_pop_u16().wrapping_add(1),
                 Operation::SAX => self.sax(&opcode.addressing_mode),
-                Operation::SBC => self.sbc(&opcode.addressing_mode),
+                Operation::SBC => self.sbc(&opcode.addressing_mode, true),
                 Operation::SEC => self.status.insert(CPUFlags::CARRY),
                 Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
                 Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
                 Operation::SLO => {
                     self.asl(&opcode.addressing_mode);
-                    self.ora(&opcode.addressing_mode);
+                    self.ora(&opcode.addressing_mode, false);
                 }
                 Operation::SRE => {
                     self.lsr(&opcode.addressing_mode);
-                    self.eor(&opcode.addressing_mode);
+                    self.eor(&opcode.addressing_mode, false);
                 }
                 Operation::STA => self.sta(&opcode.addressing_mode),
                 Operation::STX => self.stx(&opcode.addressing_mode),

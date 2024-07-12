@@ -30,7 +30,7 @@ impl CPU {
     // Returns whether or not a page was crossed when adding something to a that results in b.
     // Checks if the high byte is different.
     pub fn page_cross(a: u16, b: u16) -> bool {
-        a & 0xff00 != b & 0xff00
+       (a & 0xff00) != (b & 0xff00)
     }
 
     // returns (address, page_crossed)
@@ -69,7 +69,8 @@ impl CPU {
                 (deref, CPU::page_cross(deref, deref_base))
             }
             _ => {
-                panic!("mode {:?} is not supported", mode);
+                // TODO: refactor the 0 as a None
+                (0, false)
             }
         }
     }

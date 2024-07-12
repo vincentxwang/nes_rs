@@ -1,3 +1,7 @@
+//! Hardcoded opcodes
+//! Reference (official): https://www.nesdev.org/obelisk-6502-guide/reference.html
+//! Reference (unofficial): https://www.oxyron.de/html/opcodes02.html
+
 use crate::cpu::AddressingMode;
 use crate::cpu::Operation;
 use std::collections::HashMap;

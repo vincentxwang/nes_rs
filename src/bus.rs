@@ -1,10 +1,12 @@
+/// NES Bus
+///
+/// Reference: <http://wiki.nesdev.com/w/index.php/CPU_memory_map>
+
 use crate::cartridge::Cartridge;
 use crate::cpu::Mem;
 use crate::ppu::PPU;
 
-/// NES Bus
-///
-/// <http://wiki.nesdev.com/w/index.php/CPU_memory_map>
+
 ///
 /// |-----------------| $FFFF |-----------------|
 /// | PRG-ROM         |       |                 |
@@ -45,10 +47,11 @@ pub struct Bus {
     cpu_wram: [u8; WRAM_SIZE],
     prg_rom: Vec<u8>,
     ppu: PPU,
-    cycles: usize,
+    pub cycles: usize,
 }
 
-const WRAM_SIZE: usize = 0x0800; // 2K Work
+// 2K Work RAM
+const WRAM_SIZE: usize = 0x0800; 
 
 impl Bus {
     pub fn new(cartridge: Cartridge) -> Self {
@@ -56,7 +59,8 @@ impl Bus {
             cpu_wram: [0; WRAM_SIZE],
             prg_rom: cartridge.prg_rom,
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
-            cycles: 0,
+            // NES test starts from 7 idk why
+            cycles: 7,
         }
     }
 
