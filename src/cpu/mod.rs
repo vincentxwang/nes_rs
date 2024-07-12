@@ -12,6 +12,7 @@ mod operations;
 mod opcodes;
 mod addressing;
 
+const NMI_VECTOR: u16 = 0xfffa;
 
 // Status flags -- https://www.nesdev.org/wiki/Status_flags
 // 7654 3210
@@ -26,6 +27,7 @@ mod addressing;
 // |+-------- Overflow
 // +--------- Negative
 bitflags! {
+    #[derive(Clone)]
     pub struct CPUFlags: u8 {
         const CARRY             = 1 << 0;
         const ZERO              = 1 << 1;
@@ -190,6 +192,20 @@ impl CPU {
         self.run_with_callback(|_| {});
     }
 
+    // Reference; https://www.nesdev.org/wiki/The_frame_and_NMIs
+    fn interrupt_nmi(&mut self) {
+        self.stack_push_u16(self.program_counter);
+        let mut flag = self.status.clone();
+        flag.set(CPUFlags::BREAK, false);
+        flag.set(CPUFlags::BREAK2, true);
+
+        self.stack_push(flag.bits());
+        self.status.insert(CPUFlags::INTERRUPT_DISABLE);
+
+        self.bus.tick(2);
+        self.program_counter = self.mem_read_u16(NMI_VECTOR);
+    }
+
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
         F: FnMut(&mut CPU),
@@ -197,6 +213,11 @@ impl CPU {
         // let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
 
         loop {
+
+            if let Some(_nmi) = self.bus.pull_nmi_status() {
+                self.interrupt_nmi();
+            }
+
             callback(self);
             let code = self.mem_read(self.program_counter);
             self.program_counter = self.program_counter.wrapping_add(1);

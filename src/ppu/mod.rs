@@ -43,6 +43,8 @@ pub struct PPU {
 
     pub scanline: u16,
     pub cycles: usize,
+
+    pub nmi_interrupt: Option<u8>
 }
 
 impl PPU {
@@ -62,6 +64,8 @@ impl PPU {
 
             scanline: 0,
             cycles: 0,
+
+            nmi_interrupt: None,
         }
     }
 
@@ -91,7 +95,12 @@ impl PPU {
     }
 
     pub fn write_to_controller(&mut self, value: u8) {
+        let before_nmi_status = self.controller.contains(PPUCTRL::GENERATE_NMI);
         self.controller = PPUCTRL::from_bits_truncate(value);
+        // Check if GENERATE_NMI changes
+        if !before_nmi_status && self.controller.contains(PPUCTRL::GENERATE_NMI) && self.status.contains(PPUSTATUS::VBLANK_STARTED) {
+            self.nmi_interrupt = Some(1)
+        }
     }
 
     pub fn write_to_mask(&mut self, value: u8) {

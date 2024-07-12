@@ -6,8 +6,6 @@ use crate::cartridge::Cartridge;
 use crate::cpu::Mem;
 use crate::ppu::PPU;
 
-
-///
 /// |-----------------| $FFFF |-----------------|
 /// | PRG-ROM         |       |                 |
 /// |-----------------| $8000 |-----------------|
@@ -77,6 +75,11 @@ impl Bus {
         }
         self.prg_rom[addr as usize]
     }
+
+    pub fn pull_nmi_status(&mut self) -> Option<u8> {
+        self.ppu.nmi_interrupt.take()
+    }
+
 }
 
 impl Mem for Bus {

@@ -17,7 +17,7 @@ A performant Rust-based emulation of the [Nintendo Entertainment System](https:/
     - [X] iNES format
 - PPU
     - [X] PPU registers
-    - [ ] NMI interrupt
+    - [X] NMI interrupt
     - [ ] CHR ROM tiles
     - [ ] Static screen
     - [ ] Scrolling
