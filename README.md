@@ -18,7 +18,7 @@ A performant Rust-based emulation of the [Nintendo Entertainment System](https:/
 - PPU
     - [X] PPU registers
     - [X] NMI interrupt
-    - [ ] CHR ROM tiles
+    - [X] CHR ROM tiles
     - [ ] Static screen
     - [ ] Scrolling
 - UI
