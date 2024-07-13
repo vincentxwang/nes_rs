@@ -158,10 +158,11 @@ mod trace_test {
     use crate::bus::Bus;
     use crate::cartridge::test::create_test_cartridge;
     use crate::cpu::{Mem, CPU};
+    use crate::ppu::PPU;
 
     #[test]
     fn test_format_trace() {
-        let mut bus = Bus::new(create_test_cartridge());
+        let mut bus = Bus::default(create_test_cartridge());
         bus.mem_write(100, 0xa2);
         bus.mem_write(101, 0x01);
         bus.mem_write(102, 0xca);
@@ -193,7 +194,7 @@ mod trace_test {
 
     #[test]
     fn test_format_mem_access() {
-        let mut bus = Bus::new(create_test_cartridge());
+        let mut bus = Bus::default(create_test_cartridge());
         // ORA ($33), Y
         bus.mem_write(100, 0x11);
         bus.mem_write(101, 0x33);

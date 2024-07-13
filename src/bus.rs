@@ -41,31 +41,48 @@ const PPU_MIRRORS_END: u16 = 0x3FFF;
 const PRG_ROM_START: u16 = 0x8000;
 const PRG_ROM_END: u16 = 0xFFFF;
 
-pub struct Bus {
+// Rust breakdown: <'a> is a lifetime parameter.
+pub struct Bus<'a> {
     cpu_wram: [u8; WRAM_SIZE],
     prg_rom: Vec<u8>,
     ppu: PPU,
     pub cycles: usize,
+    // Box<T> is a smart pointer (takes ownership of heap-allocated value)
+    // dyn -> for dynamic dispatch
+    // + 'call ties lifetime to <'call>
+    gameloop_callback: Box<dyn FnMut(&PPU) + 'a>
 }
 
 // 2K Work RAM
 const WRAM_SIZE: usize = 0x0800; 
 
-impl Bus {
-    pub fn new(cartridge: Cartridge) -> Self {
+impl<'a> Bus<'_> {
+    pub fn new(cartridge: Cartridge, gameplay_callback: Box<dyn FnMut(&PPU)>) -> Bus<'a> {
         Bus {
             cpu_wram: [0; WRAM_SIZE],
             prg_rom: cartridge.prg_rom,
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
-            // NES test starts from 7 idk why
             cycles: 7,
+            gameloop_callback: gameplay_callback,
         }
+    }
+
+    // With CHR-ROM, but with empty callback function.
+    pub fn default(rom: Cartridge) -> Self {
+        Bus::new(rom, Box::from(move |_ppu: &PPU| {}))
     }
 
     pub fn tick(&mut self, cycles: usize) {
         self.cycles += cycles;
+
+        let nmi_before = self.ppu.nmi_interrupt.is_some();
         self.ppu.tick(cycles * 3);
-    }
+        let nmi_after = self.ppu.nmi_interrupt.is_some();
+        
+        // if !nmi_before && nmi_after {
+        //     (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
+        // }
+   }
 
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
         addr -= PRG_ROM_START;
@@ -82,7 +99,7 @@ impl Bus {
 
 }
 
-impl Mem for Bus {
+impl Mem for Bus<'_> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
             // WRAP start (0x0000 -> 0x1fff)

@@ -17,8 +17,9 @@ mod nestest {
 
         let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
         let rom = Cartridge::new(&bytes).unwrap();
-    
-        let bus = Bus::new(rom);
+        
+        let bus = Bus::default(rom);
+
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.program_counter = 0xC000;
