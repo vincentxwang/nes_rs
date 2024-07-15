@@ -6,6 +6,8 @@ use crate::cpu::operations::Operation;
 use crate::bus::Bus;
 use crate::cpu::opcodes::CPU_OPS_CODES;
 use crate::cpu::addressing::AddressingMode;
+use crate::render::constants::*;
+use crate::render::frame::Frame;
 
 pub mod trace;
 mod operations;
@@ -194,6 +196,7 @@ impl<'a> CPU<'a> {
 
     // Reference; https://www.nesdev.org/wiki/The_frame_and_NMIs
     fn interrupt_nmi(&mut self) {
+        println!("INTERRUPT_NMI");
         self.stack_push_u16(self.program_counter);
         let mut flag = self.status.clone();
         flag.set(CPUFlags::BREAK, false);
@@ -203,6 +206,7 @@ impl<'a> CPU<'a> {
         self.status.insert(CPUFlags::INTERRUPT_DISABLE);
 
         self.bus.tick(2);
+        
         self.program_counter = self.mem_read_u16(NMI_VECTOR);
     }
 
@@ -332,10 +336,21 @@ impl<'a> CPU<'a> {
     {
         // let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
 
-        // loop {
+        loop {
 
             if let Some(_nmi) = self.bus.pull_nmi_status() {
+
                 self.interrupt_nmi();
+
+                let mut frame = Frame::new();
+
+                Frame::render(&self.bus.ppu, &mut frame);
+
+                // let frame = Frame::show_tile_bank(&self.bus.ppu.chr_rom, 0);
+                
+                Frame::show(&frame);
+
+                return;
             }
 
             callback(self);
@@ -445,5 +460,5 @@ impl<'a> CPU<'a> {
 
             self.bus.tick(opcode.cycles);
         }
-    // }
+    }
 }

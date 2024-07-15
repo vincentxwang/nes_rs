@@ -57,7 +57,7 @@ impl PPU {
             mirroring,
             controller: PPUCTRL::new(),
             palette_table: [0; PALETTE_TABLE_SIZE],
-            vram: [0; VRAM_SIZE],
+            vram: [1; VRAM_SIZE],
             oam_data: [0; OAM_DATA_SIZE],
             ppu_addr: PPUADDR::new(),
             ppu_mask: PPUMASK::new(),
@@ -68,33 +68,40 @@ impl PPU {
             scanline: 0,
             cycles: 21,
 
+            // Simplification of NMI_occurred and NMI_output
             nmi_interrupt: None,
         }
     }
 
-    pub fn tick(&mut self, cycles: usize) -> bool {
-        self.cycles += cycles;
+    pub fn tick(&mut self, ppu_cycles: usize) -> bool {
+        self.cycles += ppu_cycles;
+
         if self.cycles >= 341 {
             self.cycles -= 341;
             self.scanline += 1;
 
+            // VBLANK begins on 241
             if self.scanline == 241 {
                 self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, true);
                 self.status.set(PPUSTATUS::VBLANK_STARTED, true);
-                if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
-                    self.nmi_interrupt = Some(1);
-                }
+                self.nmi_interrupt = Some(1);
+
+                println!("SCANLINE 241");
+                // if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
+                //     self.nmi_interrupt = Some(1);
+                //     println!("NMI_INTERRUPT SET");
+                // }
             };
 
+            // VBLANK ends after 261 (cycle restarts)
             if self.scanline >= 262 {
                 self.scanline = 0;
+                self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, false);
                 self.status.set(PPUSTATUS::VBLANK_STARTED, false);
                 self.nmi_interrupt = None;
-                self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, false);
                 return true;
             }
         };
-
         false
     }
 
@@ -103,12 +110,8 @@ impl PPU {
     }
 
     pub fn write_to_controller(&mut self, value: u8) {
-        let before_nmi_status = self.controller.contains(PPUCTRL::GENERATE_NMI);
         self.controller = PPUCTRL::from_bits_truncate(value);
-        // Check if GENERATE_NMI changes
-        if !before_nmi_status && self.controller.contains(PPUCTRL::GENERATE_NMI) && self.status.contains(PPUSTATUS::VBLANK_STARTED) {
-            self.nmi_interrupt = Some(1)
-        }
+        self.controller.set(PPUCTRL::GENERATE_NMI, true);
     }
 
     pub fn write_to_mask(&mut self, value: u8) {
@@ -138,9 +141,13 @@ impl PPU {
 
     pub fn write_to_data(&mut self, value: u8) {
         let addr = self.ppu_addr.get();
+        println!("addr: {}", addr);
         match addr {
             CHR_ROM_START..=CHR_ROM_END => panic!("Attemting to write to CHR ROM space {}", addr),
-            VRAM_START..=VRAM_END => self.vram[self.mirror_vram_addr(addr) as usize] = value,
+            VRAM_START..=VRAM_END => {
+                self.vram[self.mirror_vram_addr(addr) as usize] = value;
+                println!("writing {} to {}", value, self.mirror_vram_addr(addr))
+            },
             UNUSED_START..=UNUSED_END => panic!("Attempting to write to unused space {}", addr),
             
             // $3f10, $3f14, $3f18, $3f1c are mirrors of $3f00, $3f04, $3f08, $3f0c respectively

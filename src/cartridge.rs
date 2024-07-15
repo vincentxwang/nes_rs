@@ -20,17 +20,28 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
+    // Creates a Cartridge from raw .nes file (array of u8s).
     pub fn new(raw: &[u8]) -> Result<Cartridge, String> {
         if raw[0..4] != INES_IDENTIFIER {
             return Err("File is not in iNES file format".to_string());
         }
 
-        let mapper = (raw[7] & 0b1111_0000) | (raw[6] >> 4);
+        let prg_rom_size = raw[4] as usize * PRG_ROM_PAGE_SIZE;
+        let chr_rom_size = raw[5] as usize * CHR_ROM_PAGE_SIZE;
 
-        let ines_ver = (raw[7] >> 2) & 0b11;
-        if ines_ver != 0 {
-            return Err("NES2.0 format is not supported".to_string());
-        }
+        // raw[6] bitflag breakdown
+        // ________
+        // 76543210
+        // ||||||||
+        // |||||||+- Nametable arrangement: 0: vertical arrangement ("horizontal mirrored") (CIRAM A10 = PPU A11)
+        // |||||||                          1: horizontal arrangement ("vertically mirrored") (CIRAM A10 = PPU A10)
+        // ||||||+-- 1: Cartridge contains battery-backed PRG RAM ($6000-7FFF) or other persistent memory
+        // |||||+--- 1: 512-byte trainer at $7000-$71FF (stored before PRG data)
+        // ||||+---- 1: Alternative nametable layout
+        // ++++----- Lower nybble of mapper number
+
+        // If there's a trainers
+        let trainer = raw[6] & 0b100 != 0;
 
         let four_screen = raw[6] & 0b1000 != 0;
         let vertical_mirroring = raw[6] & 0b1 != 0;
@@ -40,12 +51,16 @@ impl Cartridge {
             (false, false) => Mirroring::Horizontal,
         };
 
-        let prg_rom_size = raw[4] as usize * PRG_ROM_PAGE_SIZE;
-        let chr_rom_size = raw[5] as usize * CHR_ROM_PAGE_SIZE;
+        let mapper = (raw[7] & 0b1111_0000) | (raw[6] >> 4);
 
-        let skip_trainer = raw[6] & 0b100 != 0;
+        let ines_ver = (raw[7] >> 2) & 0b11;
+        if ines_ver != 0 {
+            return Err("NES2.0 format is not supported".to_string());
+        }
 
-        let prg_rom_start = 16 + if skip_trainer { 512 } else { 0 };
+        // TODO: PRG-RAM size
+
+        let prg_rom_start = 16 + if trainer { 512 } else { 0 };
         let chr_rom_start = prg_rom_start + prg_rom_size;
 
         Ok(Cartridge {

@@ -82,8 +82,6 @@ impl<'a> Bus<'_> {
         if !nmi_before && nmi_after {
             (self.gameloop_callback)(&self.ppu);
         }
-
-        // (self.gameloop_callback)(&self.ppu);
    }
 
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -131,7 +129,7 @@ impl Mem for Bus<'_> {
             PRG_ROM_START..=PRG_ROM_END => self.read_prg_rom(addr),
 
             _ => {
-                println!("Ignoring mem access at {}", addr);
+                println!("Ignoring mem_read at PPU address {}", addr);
                 0
             }
         }
@@ -157,9 +155,19 @@ impl Mem for Bus<'_> {
 
             0x2005 => self.ppu.write_to_scroll(data),
 
-            0x2006 => self.ppu.write_to_ppu_addr(data),
+            0x2006 => {
+                self.ppu.write_to_ppu_addr(data);
+                println!("mem_write to 0x2006 with {}", data);
+            }
             
-            0x2007 => self.ppu.write_to_data(data),
+            0x2007 => {
+                self.ppu.write_to_data(data);
+                println!("mem_write to 0x2007 with {}", data);
+            }
+            
+            0x4014 => {
+                println!("Ignoring mem_write at 0x4014 (OAM DMA high address)")
+            }
 
             PPU_MIRRORS_START..=PPU_MIRRORS_END => {
                 // Mirrors PPU mirrors ($2008 - $4000) into $2000 - $2008
@@ -170,7 +178,7 @@ impl Mem for Bus<'_> {
                 panic!("Attempt to write to Cartridge ROM space")
             }
             _ => {
-                println!("Ignoring mem write-access at {}", addr);
+                println!("Ignoring mem_write at PPU address {}", addr);
             }
         }
     }
