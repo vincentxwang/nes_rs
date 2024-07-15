@@ -35,7 +35,7 @@ mod nestest {
                 return
             } else {
                 // get the string without ppu information
-                let test = line.as_ref().unwrap()[..73].to_owned() + &line.unwrap()[85..];
+                let test = line.as_ref().unwrap().to_owned();
                 assert_eq!(test, trace::trace(cpu));
             }
         });

@@ -1,5 +1,6 @@
 //! An implementation of the NES picture processing unit.
 //! Reference: https://www.nesdev.org/wiki/PPU
+//! https://www.nesdev.org/wiki/PPU_memory_map
 
 use crate::cartridge::Mirroring;
 use registers::controller::PPUCTRL;
@@ -28,9 +29,11 @@ const VRAM_SIZE: usize = 2048;
 const OAM_DATA_SIZE: usize = 256;
 
 pub struct PPU {
+    // $0000 - $1FFF is usually mapped to the CHR-ROM
     pub chr_rom: Vec<u8>,
-    pub palette_table: [u8; PALETTE_TABLE_SIZE],
+    // $2000 - $2FFF is usually mapped to an internal vRAM
     pub vram: [u8; VRAM_SIZE],
+    pub palette_table: [u8; PALETTE_TABLE_SIZE],
     pub oam_data: [u8; OAM_DATA_SIZE],
  
     pub controller: PPUCTRL,
@@ -63,7 +66,7 @@ impl PPU {
             oam_addr: 0,
 
             scanline: 0,
-            cycles: 0,
+            cycles: 21,
 
             nmi_interrupt: None,
         }
@@ -75,14 +78,19 @@ impl PPU {
             self.cycles -= 341;
             self.scanline += 1;
 
-            if self.scanline == 241 && self.controller.contains(PPUCTRL::GENERATE_NMI) {
+            if self.scanline == 241 {
+                self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, true);
                 self.status.set(PPUSTATUS::VBLANK_STARTED, true);
-                todo!("trigger NMI interrupt");
+                if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
+                    self.nmi_interrupt = Some(1);
+                }
             };
 
             if self.scanline >= 262 {
                 self.scanline = 0;
                 self.status.set(PPUSTATUS::VBLANK_STARTED, false);
+                self.nmi_interrupt = None;
+                self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, false);
                 return true;
             }
         };
@@ -166,6 +174,18 @@ impl PPU {
             }
             _ => panic!("unexpected access to mirrored space {}", addr)
         }
+    }
+
+    pub fn read_oam_data(&mut self) -> u8 {
+        self.oam_data[self.oam_addr as usize]
+    }
+
+    pub fn read_status(&mut self) -> u8 {
+        let data = self.status.bits();
+        self.status.set(PPUSTATUS::VBLANK_STARTED, false);
+        self.ppu_addr.reset_write_latch();
+        self.ppu_scroll.reset_latch();
+        data
     }
     
     // Nametables:

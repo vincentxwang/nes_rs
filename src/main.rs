@@ -15,41 +15,21 @@ fn nes_rs() -> Conf {
 #[macroquad::main(nes_rs)]
 async fn main() {
 
-    let bytes: Vec<u8> = std::fs::read("pacman.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("dk.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
-    let bus = Bus::new(rom, Box::from(move |ppu: &PPU| {
-        
-    }));
-    let mut cpu = CPU::new(bus);
-
-    cpu.reset();
-
     let mut frame = Frame::new();
-    let minimum_frame_time = 1. / 60.; // 60 FPS
+    
+    let bus = Bus::new(rom, Box::from(move |ppu: &PPU| {
 
-    let frame_time = get_frame_time();
+        Frame::render(&ppu, &mut frame);
 
-    println!("Frame time: {}ms", frame_time * 1000.);
-    if frame_time < minimum_frame_time {
-        let time_to_sleep = (minimum_frame_time - frame_time) * 1000.;
-        println!("Sleep for {}ms", time_to_sleep);
-        std::thread::sleep(std::time::Duration::from_millis(time_to_sleep as u64));
-    }
+        // let frame = Frame::show_tile_bank(&cpu.bus.ppu.chr_rom, 0);
 
-    let mut temp = true;
-    loop {
         let mut index = 0;
-
-        if temp {
-            println!("{:?}", frame.data[256]);
-            temp = false;
-        }
- 
-
         for j in 0..NES_PIXEL_HEIGHT {
             for i in 0..NES_PIXEL_WIDTH {
-
                 draw_rectangle(
                     (i * PIXEL_RATIO) as f32, 
                     // Add one because draw_rectangle requires the top-left corner.
@@ -61,6 +41,27 @@ async fn main() {
                 index += 1;
             }
         }
+
+    }));
+
+    let mut cpu = CPU::new(bus);
+
+    cpu.reset();
+
+    let minimum_frame_time = 1. / 60.; // 60 FPS
+
+    let frame_time = get_frame_time();
+
+    println!("Frame time: {}ms", frame_time * 1000.);
+    if frame_time < minimum_frame_time {
+        let time_to_sleep = (minimum_frame_time - frame_time) * 1000.;
+        println!("Sleep for {}ms", time_to_sleep);
+        std::thread::sleep(std::time::Duration::from_millis(time_to_sleep as u64));
+    }
+
+    loop {
+        cpu.run_once_with_callback(|x| {});
+
         next_frame().await;
     }
 }

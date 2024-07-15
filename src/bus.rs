@@ -45,7 +45,7 @@ const PRG_ROM_END: u16 = 0xFFFF;
 pub struct Bus<'a> {
     cpu_wram: [u8; WRAM_SIZE],
     prg_rom: Vec<u8>,
-    ppu: PPU,
+    pub ppu: PPU,
     pub cycles: usize,
     // Box<T> is a smart pointer (takes ownership of heap-allocated value)
     // dyn -> for dynamic dispatch
@@ -79,9 +79,11 @@ impl<'a> Bus<'_> {
         self.ppu.tick(cycles * 3);
         let nmi_after = self.ppu.nmi_interrupt.is_some();
         
-        // if !nmi_before && nmi_after {
-        //     (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
-        // }
+        if !nmi_before && nmi_after {
+            (self.gameloop_callback)(&self.ppu);
+        }
+
+        // (self.gameloop_callback)(&self.ppu);
    }
 
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -113,6 +115,10 @@ impl Mem for Bus<'_> {
             0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
                 panic!("Attempting to read from write-only PPU address {:x}", addr); 
             }
+
+            0x2002 => self.ppu.read_status(),
+
+            0x2004 => self.ppu.read_oam_data(),
 
             0x2007 => self.ppu.read_data(),
 

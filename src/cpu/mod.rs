@@ -325,4 +325,125 @@ impl<'a> CPU<'a> {
             self.bus.tick(opcode.cycles);
         }
     }
+
+    pub fn run_once_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
+        // let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
+
+        // loop {
+
+            if let Some(_nmi) = self.bus.pull_nmi_status() {
+                self.interrupt_nmi();
+            }
+
+            callback(self);
+
+            let code = self.mem_read(self.program_counter);
+            self.program_counter = self.program_counter.wrapping_add(1);
+
+            // TODO: implement a hashmap instead of this lookup
+            let opcode = CPU_OPS_CODES
+                .iter()
+                .find(|opcode| opcode.code == code)
+                .unwrap_or_else(|| panic!("Invalid code {}", code));
+
+            match opcode.op {
+                Operation::ADC => self.adc(&opcode.addressing_mode, true),
+                Operation::AND => self.and(&opcode.addressing_mode, true),
+                Operation::ASL => self.asl(&opcode.addressing_mode),
+                Operation::BCC => self.branch(!self.status.contains(CPUFlags::CARRY)),
+                Operation::BCS => self.branch(self.status.contains(CPUFlags::CARRY)),
+                Operation::BEQ => self.branch(self.status.contains(CPUFlags::ZERO)),
+                Operation::BIT => self.bit(&opcode.addressing_mode),
+                Operation::BMI => self.branch(self.status.contains(CPUFlags::NEGATIVE)),
+                Operation::BNE => self.branch(!self.status.contains(CPUFlags::ZERO)),
+                Operation::BPL => self.branch(!self.status.contains(CPUFlags::NEGATIVE)),
+                Operation::BRK => return, // Assume BRK means program termination. We do not adjust the state of the CPU.
+                Operation::BVC => self.branch(!self.status.contains(CPUFlags::OVERFLOW)),
+                Operation::BVS => self.branch(self.status.contains(CPUFlags::OVERFLOW)),
+                Operation::CLC => self.status.remove(CPUFlags::CARRY),
+                Operation::CLD => self.status.remove(CPUFlags::DECIMAL_MODE),
+                Operation::CLI => self.status.remove(CPUFlags::INTERRUPT_DISABLE),
+                Operation::CLV => self.status.remove(CPUFlags::OVERFLOW),
+                Operation::CMP => self.compare(&opcode.addressing_mode, self.register_a, true),
+                Operation::CPX => self.compare(&opcode.addressing_mode, self.register_x, true),
+                Operation::CPY => self.compare(&opcode.addressing_mode, self.register_y, true),
+                Operation::DCP => {
+                    self.dec(&opcode.addressing_mode);
+                    self.compare(&opcode.addressing_mode, self.register_a, false);
+                }
+                Operation::DEC => self.dec(&opcode.addressing_mode),
+                Operation::DEX => self.dex(),
+                Operation::DEY => self.dey(),
+                Operation::EOR => self.eor(&opcode.addressing_mode, true),
+                Operation::INC => self.inc(&opcode.addressing_mode),
+                Operation::INX => self.inx(),
+                Operation::INY => self.iny(),
+                Operation::ISB => {
+                    self.inc(&opcode.addressing_mode);
+                    self.sbc(&opcode.addressing_mode, false);
+                }
+                Operation::JMP => self.jmp(&opcode.addressing_mode),
+                Operation::JSR => self.jsr(),
+                Operation::LAX => {
+                    self.lda(&opcode.addressing_mode);
+                    self.tax();
+                },
+                Operation::LDA => self.lda(&opcode.addressing_mode),
+                Operation::LDX => self.ldx(&opcode.addressing_mode),
+                Operation::LDY => self.ldy(&opcode.addressing_mode),
+                Operation::LSR => self.lsr(&opcode.addressing_mode),
+                Operation::NOP => self.nop(&opcode.addressing_mode),
+                Operation::ORA => self.ora(&opcode.addressing_mode, true),
+                Operation::PHA => self.stack_push(self.register_a),
+                Operation::PHP => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
+                Operation::PLA => self.pla(),
+                Operation::PLP => self.plp(),
+                Operation::ROL => self.rol(&opcode.addressing_mode),
+                Operation::ROR => self.ror(&opcode.addressing_mode),
+                Operation::RLA => {
+                    self.rol(&opcode.addressing_mode);
+                    self.and(&opcode.addressing_mode, false);
+                }
+                Operation::RRA => {
+                    self.ror(&opcode.addressing_mode);
+                    self.adc(&opcode.addressing_mode, false);
+                }
+                Operation::RTI => {
+                    self.plp();
+                    self.program_counter = self.stack_pop_u16();
+                }
+                Operation::RTS => self.program_counter = self.stack_pop_u16().wrapping_add(1),
+                Operation::SAX => self.sax(&opcode.addressing_mode),
+                Operation::SBC => self.sbc(&opcode.addressing_mode, true),
+                Operation::SEC => self.status.insert(CPUFlags::CARRY),
+                Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
+                Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
+                Operation::SLO => {
+                    self.asl(&opcode.addressing_mode);
+                    self.ora(&opcode.addressing_mode, false);
+                }
+                Operation::SRE => {
+                    self.lsr(&opcode.addressing_mode);
+                    self.eor(&opcode.addressing_mode, false);
+                }
+                Operation::STA => self.sta(&opcode.addressing_mode),
+                Operation::STX => self.stx(&opcode.addressing_mode),
+                Operation::STY => self.sty(&opcode.addressing_mode),
+                Operation::TAX => self.tax(),
+                Operation::TAY => self.tay(),
+                Operation::TSX => self.tsx(),
+                Operation::TXA => self.txa(),
+                Operation::TXS => self.stack_pointer = self.register_x,
+                Operation::TYA => self.tya(),
+            }
+
+            // -1 because we already incremented program_counter to account for the instruction
+            self.program_counter = self.program_counter.wrapping_add((opcode.bytes - 1) as u16);
+
+            self.bus.tick(opcode.cycles);
+        }
+    // }
 }

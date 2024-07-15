@@ -7,12 +7,11 @@ pub struct Frame {
     pub data: Vec<Color>,
 }
 
-
 impl Frame {
  
     pub fn new() -> Self {
         Frame {
-            data: vec![BLACK; (NES_PIXEL_WIDTH as usize) * (NES_PIXEL_HEIGHT as usize)],
+            data: vec![PINK; (NES_PIXEL_WIDTH as usize) * (NES_PIXEL_HEIGHT as usize)],
         }
     }
     
