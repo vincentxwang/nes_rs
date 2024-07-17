@@ -2,6 +2,7 @@
 //!
 //! <http://wiki.nesdev.com/w/index.php/CPU>
 
+use crate::cartridge::Cartridge;
 use crate::cpu::operations::Operation;
 use crate::bus::Bus;
 use crate::cpu::opcodes::CPU_OPS_CODES;
@@ -11,7 +12,7 @@ use crate::render::frame::Frame;
 
 pub mod trace;
 mod operations;
-mod opcodes;
+pub mod opcodes;
 mod addressing;
 
 const NMI_VECTOR: u16 = 0xfffa;
@@ -101,6 +102,19 @@ impl<'a> CPU<'a> {
             register_x: 0,
             register_y: 0,
             bus,
+            program_counter: 0,
+            stack_pointer: STACK_RESET,
+            // Interrupt disable (bit 2) and the unused (bit 5) initialized by default
+            status: CPUFlags::from_bits_truncate(0b100100),
+        }
+    }
+
+    pub fn default() -> Self {
+        CPU {
+            register_a: 0,
+            register_x: 0,
+            register_y: 0,
+            bus: Bus::default(Cartridge::default()),
             program_counter: 0,
             stack_pointer: STACK_RESET,
             // Interrupt disable (bit 2) and the unused (bit 5) initialized by default
@@ -198,6 +212,7 @@ impl<'a> CPU<'a> {
     fn interrupt_nmi(&mut self) {
         println!("INTERRUPT_NMI");
         self.stack_push_u16(self.program_counter);
+
         let mut flag = self.status.clone();
         flag.set(CPUFlags::BREAK, false);
         flag.set(CPUFlags::BREAK2, true);
@@ -206,7 +221,6 @@ impl<'a> CPU<'a> {
         self.status.insert(CPUFlags::INTERRUPT_DISABLE);
 
         self.bus.tick(2);
-        
         self.program_counter = self.mem_read_u16(NMI_VECTOR);
     }
 
@@ -338,7 +352,7 @@ impl<'a> CPU<'a> {
 
         loop {
 
-            if let Some(_nmi) = self.bus.pull_nmi_status() {
+            if self.bus.pull_nmi_status().is_some() {
 
                 self.interrupt_nmi();
 

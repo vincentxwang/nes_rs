@@ -41,7 +41,7 @@ impl Cartridge {
         // ++++----- Lower nybble of mapper number
 
         // If there's a trainers
-        let trainer = raw[6] & 0b100 != 0;
+        let trainer = raw[6] & 0b100 == 0b100;
 
         let four_screen = raw[6] & 0b1000 != 0;
         let vertical_mirroring = raw[6] & 0b1 != 0;
@@ -69,6 +69,20 @@ impl Cartridge {
             mapper,
             screen_mirroring,
         })
+    }
+
+    // Creates an empty cartridge.
+    pub fn default() -> Cartridge {
+        const prg_rom_size: usize = 2 * PRG_ROM_PAGE_SIZE;
+        const chr_rom_size: usize = 1 * CHR_ROM_PAGE_SIZE;
+
+        Cartridge {
+            prg_rom: [0; prg_rom_size].to_vec(),
+            chr_rom: [0; chr_rom_size].to_vec(),
+            mapper: 0,
+            screen_mirroring: Mirroring::Horizontal,
+        }
+        
     }
 }
 

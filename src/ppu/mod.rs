@@ -47,7 +47,10 @@ pub struct PPU {
     pub scanline: u16,
     pub cycles: usize,
 
-    pub nmi_interrupt: Option<u8>
+    pub nmi_interrupt: Option<u8>,
+
+    // For PPUDATA
+    internal_data_buffer: u8,
 }
 
 impl PPU {
@@ -70,6 +73,32 @@ impl PPU {
 
             // Simplification of NMI_occurred and NMI_output
             nmi_interrupt: None,
+
+            internal_data_buffer: 0,
+        }
+    }
+
+    pub fn default() -> Self {
+        PPU {
+            chr_rom: [0; 1].to_vec(),
+            mirroring: Mirroring::Horizontal,
+            controller: PPUCTRL::new(),
+            palette_table: [0; PALETTE_TABLE_SIZE],
+            vram: [1; VRAM_SIZE],
+            oam_data: [0; OAM_DATA_SIZE],
+            ppu_addr: PPUADDR::new(),
+            ppu_mask: PPUMASK::new(),
+            ppu_scroll: PPUSCROLL::new(),
+            status: PPUSTATUS::new(),
+            oam_addr: 0,
+
+            scanline: 0,
+            cycles: 21,
+
+            // Simplification of NMI_occurred and NMI_output
+            nmi_interrupt: None,
+
+            internal_data_buffer: 0,
         }
     }
 
@@ -82,15 +111,14 @@ impl PPU {
 
             // VBLANK begins on 241
             if self.scanline == 241 {
-                self.status.set(PPUSTATUS::SPRITE_ZERO_HIT, true);
                 self.status.set(PPUSTATUS::VBLANK_STARTED, true);
-                self.nmi_interrupt = Some(1);
 
                 println!("SCANLINE 241");
-                // if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
-                //     self.nmi_interrupt = Some(1);
-                //     println!("NMI_INTERRUPT SET");
-                // }
+
+                if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
+                    self.nmi_interrupt = Some(1);
+                    println!("NMI_INTERRUPT SET");
+                }
             };
 
             // VBLANK ends after 261 (cycle restarts)
@@ -110,8 +138,12 @@ impl PPU {
     }
 
     pub fn write_to_controller(&mut self, value: u8) {
+        let before_nmi_status = self.controller.contains(PPUCTRL::GENERATE_NMI);
         self.controller = PPUCTRL::from_bits_truncate(value);
-        self.controller.set(PPUCTRL::GENERATE_NMI, true);
+        // self.controller.set(PPUCTRL::GENERATE_NMI, true);
+        if !before_nmi_status && self.controller.contains(PPUCTRL::GENERATE_NMI) && self.status.contains(PPUSTATUS::VBLANK_STARTED) {
+            self.nmi_interrupt = Some(1);
+        }
     }
 
     pub fn write_to_mask(&mut self, value: u8) {
@@ -166,11 +198,20 @@ impl PPU {
 
     pub fn read_data(&mut self) -> u8 {
         let addr = self.ppu_addr.get();
+
         self.increment_vram_addr();
 
         match addr {
-            CHR_ROM_START..=CHR_ROM_START => self.chr_rom[addr as usize],
-            VRAM_START..=VRAM_END => self.vram[self.mirror_vram_addr(addr) as usize],
+            CHR_ROM_START..=CHR_ROM_END => {
+                let result = self.internal_data_buffer;
+                self.internal_data_buffer = self.chr_rom[addr as usize];
+                result
+            }
+            VRAM_START..=VRAM_END => {
+                let result = self.internal_data_buffer;
+                self.internal_data_buffer = self.vram[self.mirror_vram_addr(addr) as usize];
+                result
+            }
             UNUSED_START..=UNUSED_END => panic!("addr space 0x3000 ~ 0x3eff should not be read from, requested = {}", addr),
             0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
                 self.palette_table[(addr - 0x10 - PALETTE_TABLE_START) as usize]
@@ -179,6 +220,7 @@ impl PPU {
             PALETTE_TABLE_START..=PALETTE_TABLE_END => {
                 self.palette_table[(addr - PALETTE_TABLE_START) as usize]
             }
+
             _ => panic!("unexpected access to mirrored space {}", addr)
         }
     }
@@ -221,4 +263,21 @@ impl PPU {
             _ => vram_index,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ppu::{registers::status::PPUSTATUS, PPU};
+
+    #[test]
+    fn test_read_status_resets_vblank() {
+        let mut ppu = PPU::default();
+        ppu.status.set(PPUSTATUS::VBLANK_STARTED, true);
+
+        let status = ppu.read_status();
+
+        assert_eq!(status >> 7, 1);
+        assert_eq!(ppu.status.bits() >> 7, 0);
+    }
+
 }

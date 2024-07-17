@@ -174,9 +174,11 @@ impl Mem for Bus<'_> {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.mem_write(mirror_down_addr, data);
             }
+
             PRG_ROM_START..=PRG_ROM_END => {
-                panic!("Attempt to write to Cartridge ROM space")
+                panic!("Attempt to write to PRG-ROM space at PPU address {}", addr)
             }
+            
             _ => {
                 println!("Ignoring mem_write at PPU address {}", addr);
             }

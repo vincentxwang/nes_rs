@@ -37,10 +37,10 @@ impl PPUCTRL {
     }
 
     pub fn vram_addr_increment(&self) -> u8 {
-        if !self.contains(PPUCTRL::VRAM_ADD_INCREMENT) {
-            1
-        } else {
+        if self.contains(PPUCTRL::VRAM_ADD_INCREMENT) {
             32
+        } else {
+            1
         }
     }
 }
