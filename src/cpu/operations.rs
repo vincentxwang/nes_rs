@@ -115,6 +115,16 @@ impl CPU<'_> {
         }
     }
 
+    // Documentation seems to be largely... incorrect?
+    // Source: https://forums.nesdev.org/viewtopic.php?t=6597
+    pub fn brk(&mut self) {
+        // Push address of BRK instruction + 2. We add 1 because we already add 1 right after reading.
+        self.stack_push_u16(self.program_counter.wrapping_add(1));
+        self.php();
+        self.sei();
+        self.program_counter = 0xFEEE;
+    }
+
     // Compare.
     // cmp_page_cross is true if we want to tick for the page cross that may happen.
     pub fn compare(&mut self, mode: &AddressingMode, compare_with: u8, cmp_page_cross: bool) {
@@ -295,6 +305,10 @@ impl CPU<'_> {
         }
     }
 
+    pub fn php(&mut self) {
+        self.stack_push(self.status.bits() | 0b0011_0000);
+    }
+
     // Pull from stack and into accumulator
     pub fn pla(&mut self) {
         let data = self.stack_pop();
@@ -319,11 +333,18 @@ impl CPU<'_> {
         }
     }
 
+    // SEt Interrupt disable
+    pub fn sei(&mut self) {
+        self.status.insert(CPUFlags::INTERRUPT_DISABLE);
+    }
+
+    // Transfer Accumulator to X
     pub fn tax(&mut self) {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    // Transfer Accumulator to Y
     pub fn tay(&mut self) {
         self.register_y = self.register_a;
         self.update_zero_and_negative_flags(self.register_y);

@@ -4,6 +4,7 @@
 
 use crate::cartridge::Cartridge;
 use crate::cpu::Mem;
+use crate::joypad::Joypad;
 use crate::ppu::PPU;
 
 /// |-----------------| $FFFF |-----------------|
@@ -50,6 +51,8 @@ pub struct Bus<'a> {
     prg_rom: Vec<u8>,
     pub ppu: PPU,
     pub cycles: usize,
+
+    pub joypad: Joypad,
     // Box<T> is a smart pointer (takes ownership of heap-allocated value)
     // dyn -> for dynamic dispatch
     // + 'call ties lifetime to <'call>
@@ -68,6 +71,7 @@ impl<'a> Bus<'_> {
             prg_rom: cartridge.prg_rom,
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
             cycles: 7,
+            joypad: Joypad::new(),
             gameloop_callback: gameplay_callback,
         }
     }
@@ -135,6 +139,8 @@ impl Mem for Bus<'_> {
 
             0x2007 => self.ppu.read_data(),
 
+            0x4016 => self.joypad.read(),
+
             PPU_MIRRORS_START..=PPU_MIRRORS_END => {
                 // Mirrors $2008 - $4000 into $2000 - $2008
                 let mirror_down_addr = addr & 0b00100000_00000111;
@@ -185,6 +191,8 @@ impl Mem for Bus<'_> {
             0x4014 => {
                 println!("Ignoring mem_write at 0x4014 (OAM DMA high address)")
             }
+
+            0x4016 => self.joypad.write(data),
 
             PPU_MIRRORS_START..=PPU_MIRRORS_END => {
                 // Mirrors PPU mirrors ($2008 - $4000) into $2000 - $2008

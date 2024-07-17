@@ -2,11 +2,16 @@
 //!
 //! <http://wiki.nesdev.com/w/index.php/CPU>
 
+use std::collections::HashMap;
+
+use macroquad::input::{is_key_down, is_key_released, KeyCode};
+
 use crate::cartridge::Cartridge;
 use crate::cpu::operations::Operation;
 use crate::bus::Bus;
 use crate::cpu::opcodes::CPU_OPS_CODES;
 use crate::cpu::addressing::AddressingMode;
+use crate::joypad::JoypadButton;
 use crate::render::constants::*;
 use crate::render::frame::Frame;
 
@@ -41,6 +46,21 @@ bitflags! {
         const OVERFLOW          = 1 << 6;
         const NEGATIVE          = 1 << 7;
     }
+}
+
+lazy_static! {
+    pub static ref KEY_MAP: HashMap<KeyCode, JoypadButton> = {
+        let mut key_map = HashMap::new();
+        key_map.insert(KeyCode::Down, JoypadButton::DOWN);
+        key_map.insert(KeyCode::Up, JoypadButton::UP);
+        key_map.insert(KeyCode::Right, JoypadButton::RIGHT);
+        key_map.insert(KeyCode::Left, JoypadButton::LEFT);
+        key_map.insert(KeyCode::Space, JoypadButton::SELECT);
+        key_map.insert(KeyCode::Q, JoypadButton::START);
+        key_map.insert(KeyCode::A, JoypadButton::BUTTON_A);
+        key_map.insert(KeyCode::S, JoypadButton::BUTTON_B);
+        key_map
+    };
 }
 
 pub struct CPU<'a> {
@@ -323,7 +343,7 @@ impl<'a> CPU<'a> {
                 Operation::SBC => self.sbc(&opcode.addressing_mode, true),
                 Operation::SEC => self.status.insert(CPUFlags::CARRY),
                 Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
-                Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
+                Operation::SEI => self.sei(),
                 Operation::SLO => {
                     self.asl(&opcode.addressing_mode);
                     self.ora(&opcode.addressing_mode, false);
@@ -371,6 +391,17 @@ impl<'a> CPU<'a> {
                 Frame::show(&frame);
 
                 return;
+            }
+
+            // Controls
+
+            for (keycode, joypad_button) in KEY_MAP.iter() {
+                if is_key_down(*keycode) {
+                    self.bus.joypad.button_status.set(*joypad_button, true);
+                }
+                if is_key_released(*keycode) {
+                    self.bus.joypad.button_status.set(*joypad_button, false);
+                }
             }
 
             callback(self);
@@ -439,7 +470,7 @@ impl<'a> CPU<'a> {
                 Operation::NOP => self.nop(&opcode.addressing_mode),
                 Operation::ORA => self.ora(&opcode.addressing_mode, true),
                 Operation::PHA => self.stack_push(self.register_a),
-                Operation::PHP => self.stack_push(self.status.bits() | 0b0011_0000), // set break flag and bit 5 to be 1
+                Operation::PHP => self.php(), // set break flag and bit 5 to be 1
                 Operation::PLA => self.pla(),
                 Operation::PLP => self.plp(),
                 Operation::ROL => self.rol(&opcode.addressing_mode),
@@ -461,7 +492,7 @@ impl<'a> CPU<'a> {
                 Operation::SBC => self.sbc(&opcode.addressing_mode, true),
                 Operation::SEC => self.status.insert(CPUFlags::CARRY),
                 Operation::SED => self.status.insert(CPUFlags::DECIMAL_MODE),
-                Operation::SEI => self.status.insert(CPUFlags::INTERRUPT_DISABLE),
+                Operation::SEI => self.sei(),
                 Operation::SLO => {
                     self.asl(&opcode.addressing_mode);
                     self.ora(&opcode.addressing_mode, false);

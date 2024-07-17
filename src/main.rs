@@ -16,9 +16,9 @@ fn nes_rs() -> Conf {
 async fn main() {
 
     // let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/rom_singles/01-basics.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("tests/blargg/vbl_clear_time.nes").unwrap();
+    // // let bytes: Vec<u8> = std::fs::read("tests/blargg/vbl_clear_time.nes").unwrap();
     let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("pacman.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
     let mut frame = Frame::new();
@@ -44,7 +44,7 @@ async fn main() {
 
     loop {
         cpu.run_once_with_callback(move |cpu| {
-            println!("{}", trace::trace(cpu));
+                // println!("{}", trace::trace(cpu));
         });
 
         next_frame().await;
