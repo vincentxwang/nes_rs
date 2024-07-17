@@ -16,7 +16,7 @@ pub enum Operation {
     JSR, LDA, LDX, LDY, LSR, NOP, ORA, PHA, PHP, PLA, PLP, ROL, ROR, RTI,
     RTS, SBC, SEC, SED, SEI, STA, STX, STY, TAX, TAY, TSX, TXA, TXS, TYA,
     // Unofficial opcodes
-    LAX, SAX, DCP, ISB, SLO, RLA, SRE, RRA
+    LAX, SAX, DCP, ISB, SLO, RLA, SRE, RRA, ANC, ALR, ARR,
 }
 
 impl fmt::Display for Operation {
@@ -36,6 +36,12 @@ impl CPU<'_> {
         if page_cross && adc_page_cross {
             self.bus.tick(1);
         }
+    }
+
+    pub fn anc(&mut self, mode: &AddressingMode) {
+        let (addr, page_cross) = self.get_operand_address(mode);
+        self.and(mode, false);
+        self.status.set(CPUFlags::CARRY, self.status.contains(CPUFlags::NEGATIVE));
     }
 
     // Logical AND
@@ -69,6 +75,12 @@ impl CPU<'_> {
             _ => self.mem_write(addr.unwrap(), data),
         }
         self.update_zero_and_negative_flags(data);
+    }
+
+    pub fn arr(&mut self, mode: &AddressingMode) {
+        self.and(mode, false);
+        self.lsr(mode);
+        // TODO: implement ARR quirky bitflags
     }
 
     // Bit test

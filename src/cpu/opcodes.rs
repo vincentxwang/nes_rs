@@ -57,6 +57,13 @@ lazy_static! {
         OpCode::new(0x0e, Operation::ASL, 3, 6, AddressingMode::Absolute),
         OpCode::new(0x1e, Operation::ASL, 3, 7, AddressingMode::Absolute_X),
 
+        OpCode::new(0x4b, Operation::ALR, 2, 2, AddressingMode::Immediate),
+
+        OpCode::new(0x0b, Operation::ANC, 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x2b, Operation::ANC, 2, 2, AddressingMode::Immediate),
+
+        OpCode::new(0x6b, Operation::ARR, 2, 2, AddressingMode::Immediate),
+
         OpCode::new(0x90, Operation::BCC, 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
 
         OpCode::new(0xb0, Operation::BCS, 2, 2 /*(+1 if branch succeeds +2 if to a new page)*/, AddressingMode::NoneAddressing),
@@ -372,7 +379,11 @@ lazy_static! {
         // RRA
         0x67, 0x77, 0x6f, 0x7f, 0x7b, 0x63, 0x73,
         // SAX
-        0x83, 0x87, 0x8f, 0x97
+        0x83, 0x87, 0x8f, 0x97,
+        // ANC
+        0x0b, 0x2b,
+        // ALR
+        0x4b,
     ];
 }
 

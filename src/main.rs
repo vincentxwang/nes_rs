@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use nes_rs::{bus::Bus, cartridge::Cartridge, cpu::{trace, CPU}, ppu::PPU, render::{constants::*, frame::Frame}};
+use nes_rs::{bus::Bus, cartridge::Cartridge, cpu::{trace, Mem, CPU}, ppu::PPU, render::{constants::*, frame::Frame}};
 
 // Pixels are numbered from 0 to (256 * 200 - 256), from left to right, then up to down.
 // Each is identified with an x and y coordinate.
@@ -15,10 +15,10 @@ fn nes_rs() -> Conf {
 #[macroquad::main(nes_rs)]
 async fn main() {
 
-    let bytes: Vec<u8> = std::fs::read("dk.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/rom_singles/01-basics.nes").unwrap();
     // let bytes: Vec<u8> = std::fs::read("tests/blargg/vbl_clear_time.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("pacman.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
     let mut frame = Frame::new();
@@ -50,3 +50,30 @@ async fn main() {
         next_frame().await;
     }
 }
+
+// fn main() {
+//     let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/rom_singles/03-immediate.nes").unwrap();
+//     let rom = Cartridge::new(&bytes).unwrap();
+
+//     let bus = Bus::default(rom);
+
+//     let mut cpu = CPU::new(bus);
+//     cpu.reset();
+//     // cpu.program_counter = 0xE000;
+
+//     // let master: String = fs::read_to_string("tests/nestest/nestestmaster.log").unwrap();
+
+//     // let cursor = std::io::Cursor::new(master);
+//     // let mut lines_iter = cursor.lines().map(|l| l.unwrap());
+
+//     cpu.run_with_callback(move |cpu| {
+//         // println!("{}", trace::trace(cpu));
+//         // println!("{}", cpu.mem_read(0x6000));
+//         let mut count: u16 = 0x6000;
+//         while cpu.mem_read(count) != 0 {
+//             print!("{} ", cpu.mem_read(count));
+//             count += 1;
+//         }
+//         println!("{}", trace::trace(cpu));
+//     });
+// }

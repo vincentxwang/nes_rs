@@ -13,7 +13,7 @@ pub fn trace(cpu: &mut CPU) -> String {
     let opscodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
 
     let code = cpu.mem_read(cpu.program_counter);
-    let ops = opscodes.get(&code).unwrap();
+    let ops = opscodes.get(&code).expect(&format!("no opcode found for {}", code));
 
     let begin = cpu.program_counter;
     let mut hex_dump = vec![];

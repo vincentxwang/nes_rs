@@ -248,7 +248,13 @@ impl<'a> CPU<'a> {
 
             match opcode.op {
                 Operation::ADC => self.adc(&opcode.addressing_mode, true),
+                Operation::ALR => {
+                    self.and(&opcode.addressing_mode, false);
+                    self.lsr(&opcode.addressing_mode);
+                }
+                Operation::ANC => self.anc(&opcode.addressing_mode),
                 Operation::AND => self.and(&opcode.addressing_mode, true),
+                Operation::ARR => self.arr(&opcode.addressing_mode),
                 Operation::ASL => self.asl(&opcode.addressing_mode),
                 Operation::BCC => self.branch(!self.status.contains(CPUFlags::CARRY)),
                 Operation::BCS => self.branch(self.status.contains(CPUFlags::CARRY)),
@@ -380,8 +386,14 @@ impl<'a> CPU<'a> {
 
             match opcode.op {
                 Operation::ADC => self.adc(&opcode.addressing_mode, true),
+                Operation::ALR => {
+                    self.and(&opcode.addressing_mode, false);
+                    self.lsr(&opcode.addressing_mode);
+                }
+                Operation::ANC => self.anc(&opcode.addressing_mode),
                 Operation::AND => self.and(&opcode.addressing_mode, true),
                 Operation::ASL => self.asl(&opcode.addressing_mode),
+                Operation::ARR => self.arr(&opcode.addressing_mode),
                 Operation::BCC => self.branch(!self.status.contains(CPUFlags::CARRY)),
                 Operation::BCS => self.branch(self.status.contains(CPUFlags::CARRY)),
                 Operation::BEQ => self.branch(self.status.contains(CPUFlags::ZERO)),

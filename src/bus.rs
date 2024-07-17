@@ -38,12 +38,15 @@ const WRAM_END: u16 = 0x1FFF;
 const PPU_START: u16 = 0x2000;
 const PPU_MIRRORS_START: u16 = 0x2008;
 const PPU_MIRRORS_END: u16 = 0x3FFF;
+const PRG_RAM_START: u16 = 0x6000;
+const PRG_RAM_END: u16 = 0x7FFF;
 const PRG_ROM_START: u16 = 0x8000;
 const PRG_ROM_END: u16 = 0xFFFF;
 
 // Rust breakdown: <'a> is a lifetime parameter.
 pub struct Bus<'a> {
     cpu_wram: [u8; WRAM_SIZE],
+    prg_ram: Vec<u8>,
     prg_rom: Vec<u8>,
     pub ppu: PPU,
     pub cycles: usize,
@@ -55,11 +58,13 @@ pub struct Bus<'a> {
 
 // 2K Work RAM
 const WRAM_SIZE: usize = 0x0800; 
+const PRG_RAM_SIZE: usize = 0x2000;
 
 impl<'a> Bus<'_> {
     pub fn new(cartridge: Cartridge, gameplay_callback: Box<dyn FnMut(&PPU)>) -> Bus<'a> {
         Bus {
             cpu_wram: [0; WRAM_SIZE],
+            prg_ram: [0; PRG_RAM_SIZE].to_vec(),
             prg_rom: cartridge.prg_rom,
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
             cycles: 7,
@@ -79,9 +84,9 @@ impl<'a> Bus<'_> {
         self.ppu.tick(cycles * 3);
         let nmi_after = self.ppu.nmi_interrupt.is_some();
         
-        if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&self.ppu);
-        }
+        // if !nmi_before && nmi_after {
+        //     (self.gameloop_callback)(&self.ppu);
+        // }
    }
 
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -91,6 +96,16 @@ impl<'a> Bus<'_> {
             addr %= 0x4000;
         }
         self.prg_rom[addr as usize]
+    }
+
+    fn read_prg_ram(&self, mut addr: u16) -> u8 {
+        addr -= PRG_RAM_START;
+        self.prg_ram[addr as usize]
+    }
+
+    fn write_to_prg_ram(&mut self, mut addr: u16, val: u8) {
+        addr -= PRG_RAM_START;
+        self.prg_ram[addr as usize] = val;
     }
 
     pub fn pull_nmi_status(&mut self) -> Option<u8> {
@@ -126,10 +141,12 @@ impl Mem for Bus<'_> {
                 self.mem_read(mirror_down_addr)
             },
 
+            PRG_RAM_START..=PRG_RAM_END => self.read_prg_ram(addr),
+
             PRG_ROM_START..=PRG_ROM_END => self.read_prg_rom(addr),
 
             _ => {
-                println!("Ignoring mem_read at PPU address {}", addr);
+                println!("Ignoring mem_read at BUS address {}", addr);
                 0
             }
         }
@@ -175,12 +192,14 @@ impl Mem for Bus<'_> {
                 self.mem_write(mirror_down_addr, data);
             }
 
+            PRG_RAM_START..=PRG_RAM_END => self.write_to_prg_ram(addr, data),
+
             PRG_ROM_START..=PRG_ROM_END => {
-                panic!("Attempt to write to PRG-ROM space at PPU address {}", addr)
+                panic!("Attempt to write {} to PRG-ROM space at BUS address {}", data, addr)
             }
             
             _ => {
-                println!("Ignoring mem_write at PPU address {}", addr);
+                println!("Ignoring attempt to write {} to BUS address {}", data, addr);
             }
         }
     }

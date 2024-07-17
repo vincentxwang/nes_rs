@@ -164,15 +164,18 @@ impl PPU {
     }
 
     fn increment_vram_addr(&mut self) {
-        if !self.controller.contains(PPUCTRL::VRAM_ADD_INCREMENT) {
-            self.ppu_addr.increment(1);
-        } else {
+        if self.controller.contains(PPUCTRL::VRAM_ADD_INCREMENT) {
             self.ppu_addr.increment(32);
+        } else {
+            self.ppu_addr.increment(1);
         }
     }
 
     pub fn write_to_data(&mut self, value: u8) {
         let addr = self.ppu_addr.get();
+        
+        self.increment_vram_addr();
+
         println!("addr: {}", addr);
         match addr {
             CHR_ROM_START..=CHR_ROM_END => panic!("Attemting to write to CHR ROM space {}", addr),
