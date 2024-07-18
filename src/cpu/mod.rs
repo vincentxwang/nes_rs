@@ -63,14 +63,14 @@ lazy_static! {
     };
 }
 
-pub struct CPU<'a> {
+pub struct CPU {
     pub register_a: u8,
     pub status: CPUFlags,
     pub register_x: u8,
     pub register_y: u8,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    pub bus: Bus<'a>,
+    pub bus: Bus,
 }
 
 // Stack occupied 0x0100 -> 0x01FF
@@ -97,7 +97,7 @@ pub trait Mem {
     }
 }
 
-impl Mem for CPU<'_> {
+impl Mem for CPU {
     // This is a mut self because we need to increment VRAM address in PPU
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
@@ -115,8 +115,8 @@ impl Mem for CPU<'_> {
     }
 }
 
-impl<'a> CPU<'a> {
-    pub fn new(bus: Bus<'a>) -> Self {
+impl CPU {
+    pub fn new(bus: Bus) -> Self {
         CPU {
             register_a: 0,
             register_x: 0,

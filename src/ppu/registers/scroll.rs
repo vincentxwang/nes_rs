@@ -28,4 +28,5 @@ impl PPUSCROLL {
     pub fn reset_latch(&mut self) {
         self.latch = false;
     }
+
 }

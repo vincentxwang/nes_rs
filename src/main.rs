@@ -15,17 +15,15 @@ fn nes_rs() -> Conf {
 #[macroquad::main(nes_rs)]
 async fn main() {
 
-    // let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/rom_singles/01-basics.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/official_only.nes").unwrap();
     // // let bytes: Vec<u8> = std::fs::read("tests/blargg/vbl_clear_time.nes").unwrap();
-    let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("pacman.nes").unwrap();
+    // let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("dk.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
     let mut frame = Frame::new();
     
-    let bus = Bus::new(rom, Box::from(move |ppu: &PPU| {
-
-    }));
+    let bus = Bus::new(rom);
 
     let mut cpu = CPU::new(bus);
 
@@ -44,7 +42,7 @@ async fn main() {
 
     loop {
         cpu.run_once_with_callback(move |cpu| {
-                // println!("{}", trace::trace(cpu));
+                println!("{}", trace::trace(cpu));
         });
 
         next_frame().await;

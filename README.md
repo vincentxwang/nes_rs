@@ -19,10 +19,10 @@ A performant Rust-based emulation of the [Nintendo Entertainment System](https:/
     - [X] PPU registers
     - [X] NMI interrupt
     - [X] CHR ROM tiles
-    - [ ] Static screen
+    - [X] Static screen
     - [ ] Scrolling
 - UI
-    - [ ] Controller mappings
+    - [X] Controller mappings
 - APU
     - [ ] ?
 - Testing/docs

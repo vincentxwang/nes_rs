@@ -34,19 +34,19 @@ use crate::ppu::PPU;
 /// |-----------------| $0000 |-----------------|
 
 // Memmory map constants. Includes mirrors.
-const WRAM_START: u16 = 0x0000;
-const WRAM_END: u16 = 0x1FFF;
-const PPU_START: u16 = 0x2000;
-const PPU_MIRRORS_START: u16 = 0x2008;
-const PPU_MIRRORS_END: u16 = 0x3FFF;
-const PRG_RAM_START: u16 = 0x6000;
-const PRG_RAM_END: u16 = 0x7FFF;
-const PRG_ROM_START: u16 = 0x8000;
-const PRG_ROM_END: u16 = 0xFFFF;
+pub const WRAM_START: u16 = 0x0000;
+pub const WRAM_END: u16 = 0x1FFF;
+pub const PPU_START: u16 = 0x2000;
+pub const PPU_MIRRORS_START: u16 = 0x2008;
+pub const PPU_MIRRORS_END: u16 = 0x3FFF;
+pub const PRG_RAM_START: u16 = 0x6000;
+pub const PRG_RAM_END: u16 = 0x7FFF;
+pub const PRG_ROM_START: u16 = 0x8000;
+pub const PRG_ROM_END: u16 = 0xFFFF;
 
 // Rust breakdown: <'a> is a lifetime parameter.
-pub struct Bus<'a> {
-    cpu_wram: [u8; WRAM_SIZE],
+pub struct Bus {
+    pub cpu_wram: [u8; WRAM_SIZE],
     prg_ram: Vec<u8>,
     prg_rom: Vec<u8>,
     pub ppu: PPU,
@@ -56,15 +56,14 @@ pub struct Bus<'a> {
     // Box<T> is a smart pointer (takes ownership of heap-allocated value)
     // dyn -> for dynamic dispatch
     // + 'call ties lifetime to <'call>
-    gameloop_callback: Box<dyn FnMut(&PPU) + 'a>
 }
 
 // 2K Work RAM
 const WRAM_SIZE: usize = 0x0800; 
 const PRG_RAM_SIZE: usize = 0x2000;
 
-impl<'a> Bus<'_> {
-    pub fn new(cartridge: Cartridge, gameplay_callback: Box<dyn FnMut(&PPU)>) -> Bus<'a> {
+impl Bus {
+    pub fn new(cartridge: Cartridge) -> Bus {
         Bus {
             cpu_wram: [0; WRAM_SIZE],
             prg_ram: [0; PRG_RAM_SIZE].to_vec(),
@@ -72,13 +71,12 @@ impl<'a> Bus<'_> {
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
             cycles: 7,
             joypad: Joypad::new(),
-            gameloop_callback: gameplay_callback,
         }
     }
 
     // With CHR-ROM, but with empty callback function.
     pub fn default(rom: Cartridge) -> Self {
-        Bus::new(rom, Box::from(move |_ppu: &PPU| {}))
+        Bus::new(rom)
     }
 
     pub fn tick(&mut self, cycles: usize) {
@@ -93,7 +91,7 @@ impl<'a> Bus<'_> {
         // }
    }
 
-    fn read_prg_rom(&self, mut addr: u16) -> u8 {
+    pub fn read_prg_rom(&self, mut addr: u16) -> u8 {
         addr -= PRG_ROM_START;
         // Mirror in case PRG ROM takes up only 16kB instead of 32kB.
         if self.prg_rom.len() == 0x4000 && addr >= 0x4000 {
@@ -102,7 +100,7 @@ impl<'a> Bus<'_> {
         self.prg_rom[addr as usize]
     }
 
-    fn read_prg_ram(&self, mut addr: u16) -> u8 {
+    pub fn read_prg_ram(&self, mut addr: u16) -> u8 {
         addr -= PRG_RAM_START;
         self.prg_ram[addr as usize]
     }
@@ -118,7 +116,7 @@ impl<'a> Bus<'_> {
 
 }
 
-impl Mem for Bus<'_> {
+impl Mem for Bus {
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
             // WRAP start (0x0000 -> 0x1fff)
@@ -203,7 +201,7 @@ impl Mem for Bus<'_> {
             PRG_RAM_START..=PRG_RAM_END => self.write_to_prg_ram(addr, data),
 
             PRG_ROM_START..=PRG_ROM_END => {
-                panic!("Attempt to write {} to PRG-ROM space at BUS address {}", data, addr)
+                panic!("Write {} to PRG-ROM space at BUS address {}", data, addr);
             }
             
             _ => {

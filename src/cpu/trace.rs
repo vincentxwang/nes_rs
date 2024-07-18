@@ -1,12 +1,80 @@
 //! An nes_test-compatible tracer (https://www.qmtpro.com/~nes/misc/nestest.txt)
 
 use std::collections::HashMap;
+use crate::bus::Bus;
 use crate::cpu::CPU;
 use crate::cpu::AddressingMode;
 use crate::cpu::operations::Operation;
 use crate::cpu::opcodes::{self, UNOFFICIAL_OPCODES};
+use crate::bus::*;
 
 use super::Mem;
+
+impl Bus {
+    // Reads without doing any effects, or panicing.
+    pub fn mem_read_debug(&self, addr: u16) -> u16 {
+        match addr {
+            // WRAP start (0x0000 -> 0x1fff)
+            WRAM_START..=WRAM_END => {
+                // Take the last 11 bits.
+                let mirror_down_addr = addr & 0b111_1111_1111;
+                self.cpu_wram[mirror_down_addr as usize] as u16
+            }
+
+            // PPU start (0x2000 -> 0x3fff)
+            0x2000 => self.ppu.controller.bits() as u16,
+            
+            0x2001 => self.ppu.ppu_mask.bits() as u16,
+
+            0x2002 => self.ppu.status.bits() as u16,
+
+            0x2003 => self.ppu.oam_addr as u16,
+
+            0x2004 => self.ppu.oam_data[self.ppu.oam_addr as usize] as u16,
+
+            0x2005 => {
+                // TODO: implement scroll get
+                println!("dummy");
+                42
+            },
+
+            0x2006 => self.ppu.ppu_addr.get(),
+
+            // TODO: implement PPUDATA debug
+            0x2007 => { 
+                println!("dummy");
+                42
+            }
+
+            // TODO: implement OAMDATA debug
+            0x4014 => {
+                println!("dummy");
+                42
+            }
+
+            0x4016 => self.joypad.button_status.bits() as u16,
+
+            PPU_MIRRORS_START..=PPU_MIRRORS_END => {
+                // Mirrors $2008 - $4000 into $2000 - $2008
+                // let mirror_down_addr = addr & 0b00100000_00000111;
+                // self.mem_read(mirror_down_addr)
+                // TODO: fix this lol
+                println!("dummy");
+                42
+      
+            },
+
+            PRG_RAM_START..=PRG_RAM_END => self.read_prg_ram(addr) as u16,
+
+            PRG_ROM_START..=PRG_ROM_END => self.read_prg_rom(addr) as u16,
+
+            _ => {
+                println!("Ignoring mem_read at BUS address {}", addr);
+                0
+            }
+        }
+    }
+}
 
 // TODO: add in PPU
 pub fn trace(cpu: &mut CPU) -> String {
@@ -23,7 +91,7 @@ pub fn trace(cpu: &mut CPU) -> String {
         AddressingMode::Immediate | AddressingMode::NoneAddressing | AddressingMode::Indirect => (0, 0),
         _ => {
             let (addr, _) = cpu.get_absolute_address(&ops.addressing_mode, begin.wrapping_add(1));
-            (addr, cpu.mem_read(addr))
+            (addr, cpu.bus.mem_read_debug(addr))
             // (addr, 69)
         }
     };

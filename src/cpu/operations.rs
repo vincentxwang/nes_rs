@@ -26,7 +26,7 @@ impl fmt::Display for Operation {
 }
 
 
-impl CPU<'_> {
+impl CPU {
     // Add with carry
     // adc_page_cross is true if we want to tick for the page cross that may happen.
     pub fn adc(&mut self, mode: &AddressingMode, adc_page_cross: bool) {

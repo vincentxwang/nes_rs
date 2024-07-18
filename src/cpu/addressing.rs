@@ -17,7 +17,7 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
-impl CPU<'_> {
+impl CPU {
     // returns (address, page_crossed?)
     // wrapper for get_absolute_address
     pub fn get_operand_address(&mut self, mode: &AddressingMode) -> (u16, bool) {
