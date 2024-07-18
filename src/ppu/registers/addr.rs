@@ -34,7 +34,7 @@ impl PPUADDR {
 
         // Mirrors down in case result is greater than the valid address range.
         if self.get() > 0x3fff {
-            self.set(self.get() & 0x3fff);
+            self.set(self.get() & 0x4000);
         }
 
         self.write_latch = !self.write_latch;
@@ -51,7 +51,7 @@ impl PPUADDR {
 
         // Mirrors down in case result is greater than the valid address range.
         if self.get() > 0x3fff {
-            self.set(self.get() & 0x3fff);
+            self.set(self.get() & 0x4000);
         }
     }
 

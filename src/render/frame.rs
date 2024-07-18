@@ -31,8 +31,8 @@ impl Frame {
         let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
      
         for y in 0..=7 {
-            let mut upper = tile[y];
-            let mut lower = tile[y + 8];
+            let mut lower = tile[y];
+            let mut upper = tile[y + 8];
      
             for x in (0..=7).rev() {
                 // If neither bit is set to 1: The pixel is background/transparent.
@@ -66,9 +66,9 @@ impl Frame {
             let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
     
             for y in 0..=7 {
-                let mut upper = tile[y];
-                let mut lower = tile[y + 8];
-    
+                let mut lower = tile[y];
+                let mut upper = tile[y + 8];
+
                 for x in (0..=7).rev() {
                     let value = (1 & upper) << 1 | (1 & lower);
                     upper = upper >> 1;

@@ -6,6 +6,9 @@ use crate::cartridge::Cartridge;
 use crate::cpu::Mem;
 use crate::joypad::Joypad;
 use crate::ppu::PPU;
+use crate::bus::dma::DMA;
+
+mod dma;
 
 /// |-----------------| $FFFF |-----------------|
 /// | PRG-ROM         |       |                 |
@@ -44,7 +47,6 @@ pub const PRG_RAM_END: u16 = 0x7FFF;
 pub const PRG_ROM_START: u16 = 0x8000;
 pub const PRG_ROM_END: u16 = 0xFFFF;
 
-// Rust breakdown: <'a> is a lifetime parameter.
 pub struct Bus {
     pub cpu_wram: [u8; WRAM_SIZE],
     prg_ram: Vec<u8>,
@@ -53,10 +55,10 @@ pub struct Bus {
     pub cycles: usize,
 
     pub joypad: Joypad,
-    // Box<T> is a smart pointer (takes ownership of heap-allocated value)
-    // dyn -> for dynamic dispatch
-    // + 'call ties lifetime to <'call>
+
+    dma: DMA,
 }
+
 
 // 2K Work RAM
 const WRAM_SIZE: usize = 0x0800; 
@@ -71,6 +73,8 @@ impl Bus {
             ppu: PPU::new(cartridge.chr_rom, cartridge.screen_mirroring),
             cycles: 7,
             joypad: Joypad::new(),
+
+            dma: DMA::new(),
         }
     }
 
@@ -80,15 +84,23 @@ impl Bus {
     }
 
     pub fn tick(&mut self, cycles: usize) {
-        self.cycles += cycles;
-
-        let nmi_before = self.ppu.nmi_interrupt.is_some();
         self.ppu.tick(cycles * 3);
-        let nmi_after = self.ppu.nmi_interrupt.is_some();
-        
-        // if !nmi_before && nmi_after {
-        //     (self.gameloop_callback)(&self.ppu);
-        // }
+        if self.dma.dma_transfer {
+            // If not synced, wait a cycle
+            if self.dma.dma_is_not_sync {
+                if (self.cycles % 2 == 1) {
+                    self.dma.dma_is_not_sync = false;
+                }
+            } else {
+                if (self.cycles % 2 == 0) {
+                    self.dma.data = self.mem_read((self.dma.page as u16) << 8 | self.dma.addr as u16)
+                } else {
+                    // self.ppu.oam
+                }
+            }
+        } else {
+            self.cycles += cycles;
+        }
    }
 
     pub fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -187,6 +199,7 @@ impl Mem for Bus {
             }
             
             0x4014 => {
+                
                 println!("Ignoring mem_write at 0x4014 (OAM DMA high address)")
             }
 
@@ -201,7 +214,7 @@ impl Mem for Bus {
             PRG_RAM_START..=PRG_RAM_END => self.write_to_prg_ram(addr, data),
 
             PRG_ROM_START..=PRG_ROM_END => {
-                panic!("Write {} to PRG-ROM space at BUS address {}", data, addr);
+                println!("Ignoring: Write {} to PRG-ROM space at BUS address {}", data, addr);
             }
             
             _ => {

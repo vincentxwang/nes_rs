@@ -15,6 +15,7 @@ pub mod registers;
 const CHR_ROM_START: u16 = 0x0000;
 const CHR_ROM_END: u16 = 0x1fff;
 const VRAM_START: u16 = 0x2000;
+const ATTRIBUTE_TABLE_START: u16 = 0x23c0;
 const VRAM_END: u16 = 0x2fff;
 const UNUSED_START: u16 = 0x3000;
 const UNUSED_END: u16 = 0x3eff;
@@ -49,18 +50,29 @@ pub struct PPU {
 
     pub nmi_interrupt: Option<u8>,
 
+    pub chr_ram: Option<Vec<u8>>,
+
     // For PPUDATA
     internal_data_buffer: u8,
 }
 
 impl PPU {
     pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
+
+        let chr_ram;
+
+        if chr_rom.len() == 0 {
+            chr_ram = Some(vec![0; 0x2000]);
+        } else {
+            chr_ram = None;
+        }
+
         PPU {
             chr_rom,
             mirroring,
             controller: PPUCTRL::new(),
             palette_table: [0; PALETTE_TABLE_SIZE],
-            vram: [1; VRAM_SIZE],
+            vram: [0; VRAM_SIZE],
             oam_data: [0; OAM_DATA_SIZE],
             ppu_addr: PPUADDR::new(),
             ppu_mask: PPUMASK::new(),
@@ -75,12 +87,14 @@ impl PPU {
             nmi_interrupt: None,
 
             internal_data_buffer: 0,
+
+            chr_ram,
         }
     }
 
     pub fn default() -> Self {
         PPU {
-            chr_rom: [0; 1].to_vec(),
+            chr_rom: vec![0; 1],
             mirroring: Mirroring::Horizontal,
             controller: PPUCTRL::new(),
             palette_table: [0; PALETTE_TABLE_SIZE],
@@ -99,6 +113,8 @@ impl PPU {
             nmi_interrupt: None,
 
             internal_data_buffer: 0,
+
+            chr_ram: None,
         }
     }
 
@@ -157,6 +173,8 @@ impl PPU {
         self.ppu_scroll.write(value);
     }
 
+    // Writing to OAMDATA ($2004).
+    // This is notoriously finnicky. Check this later with PPU ROMs.
     pub fn write_to_oam_data(&mut self, value: u8) {
         self.oam_data[self.oam_addr as usize] = value;
         self.oam_addr = self.oam_addr.wrapping_add(1);
@@ -181,7 +199,14 @@ impl PPU {
 
         println!("addr: {}", addr);
         match addr {
-            CHR_ROM_START..=CHR_ROM_END => panic!("Attemting to write to CHR ROM space {}", addr),
+            CHR_ROM_START..=CHR_ROM_END => {
+                if let Some(chr_ram) = &mut self.chr_ram {
+                    chr_ram[addr as usize] = value;
+                } else {
+                    panic!("Trying to write into PPU CHR-ROM space at addr {}", addr);
+                }
+            },
+
             VRAM_START..=VRAM_END => {
                 self.vram[self.mirror_vram_addr(addr) as usize] = value;
                 println!("writing {} to {}", value, self.mirror_vram_addr(addr))
@@ -202,6 +227,72 @@ impl PPU {
         }
     }
 
+    // Reference: https://www.nesdev.org/wiki/PPU_attribute_tables
+    // In the diagram below, each byte-palette (big square) controls a 32x32 pixels (or 4x4 tiles).
+    //        2xx0    2xx1    2xx2    2xx3    2xx4    2xx5    2xx6    2xx7
+    //      ,-------+-------+-------+-------+-------+-------+-------+-------.
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xC0:| - 0 - | - 1 - | - 2 - | - 3 - | - 4 - | - 5 - | - 6 - | - 7 - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xC8:| - 8 - | - 9 - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xD0:| - + - | - + - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xD8:| - + - | - + - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xE0:| - + - | - + - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xE8:| - + - | - + - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    // 2xF0:| - + - | - + - | - + - | - + - | - + - | - + - | - + - | - + - |
+    //      |   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      +-------+-------+-------+-------+-------+-------+-------+-------+
+    // 2xF8:|   .   |   .   |   .   |   .   |   .   |   .   |   .   |   .   |
+    //      `-------+-------+-------+-------+-------+-------+-------+-------'
+    // More accurately, two bits in each byte determine each of the palette indices.
+    //
+    //       +---------------+
+    //       | (0,0) | (1,0) |
+    //       |       |       |
+    //       +-------+-------+
+    //       | (0,1) | (1,1) |
+    //       |       |       |
+    //       +-------+-------+
+    pub fn bg_palette(&self, tile_x: usize, tile_y: usize) -> [u8; 4] {
+        // / 4 because each byte controls 4x4 tiles. * 8 because 
+        let attr_table_idx = (tile_y / 4) * 8 + (tile_x / 4);
+        let attr_byte = self.vram[attr_table_idx + (ATTRIBUTE_TABLE_START - VRAM_START) as usize];  // note: still using hardcoded first nametable
+
+        let palette_idx = match ((tile_x % 4) / 2, (tile_y % 4) / 2) {
+            (0, 0) => attr_byte & 0b11,
+            (1, 0) => (attr_byte >> 2) & 0b11,
+            (0, 1) => (attr_byte >> 4) & 0b11,
+            (1, 1) => (attr_byte >> 6) & 0b11,
+            _ => unreachable!(),
+        };
+
+        // Multiply out 4 because each palette is 4 colors.
+        let palette_start: usize = 1 + (palette_idx as usize) * 4;
+        [
+            self.palette_table[0],
+            self.palette_table[palette_start],
+            self.palette_table[palette_start + 1],
+            self.palette_table[palette_start + 2],
+        ]
+    }
+
     pub fn read_data(&mut self) -> u8 {
         let addr = self.ppu_addr.get();
 
@@ -210,7 +301,11 @@ impl PPU {
         match addr {
             CHR_ROM_START..=CHR_ROM_END => {
                 let result = self.internal_data_buffer;
-                self.internal_data_buffer = self.chr_rom[addr as usize];
+                if let Some(chr_ram) = &mut self.chr_ram {
+                    self.internal_data_buffer = chr_ram[addr as usize];
+                } else {
+                    self.internal_data_buffer = self.chr_rom[addr as usize];
+                }
                 result
             }
             VRAM_START..=VRAM_END => {
@@ -219,6 +314,7 @@ impl PPU {
                 result
             }
             UNUSED_START..=UNUSED_END => panic!("addr space 0x3000 ~ 0x3eff should not be read from, requested = {}", addr),
+            
             0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
                 self.palette_table[(addr - 0x10 - PALETTE_TABLE_START) as usize]
             }
@@ -234,7 +330,7 @@ impl PPU {
     pub fn read_oam_data(&mut self) -> u8 {
         self.oam_data[self.oam_addr as usize]
     }
-
+    
     pub fn read_status(&mut self) -> u8 {
         let data = self.status.bits();
         self.status.set(PPUSTATUS::VBLANK_STARTED, false);
