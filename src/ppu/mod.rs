@@ -102,6 +102,7 @@ impl PPU {
         }
     }
 
+    // Progresses PPU cycles and sets up NMI + VBLANK.
     pub fn tick(&mut self, ppu_cycles: usize) -> bool {
         self.cycles += ppu_cycles;
 
@@ -146,10 +147,12 @@ impl PPU {
         }
     }
 
+    // Writes a value to PPUMASK ($2001).
     pub fn write_to_mask(&mut self, value: u8) {
         self.ppu_mask = PPUMASK::from_bits_truncate(value);
     }
 
+    // Writes a value to PPUSCROLL ($2003).
     pub fn write_to_scroll(&mut self, value: u8) {
         self.ppu_scroll.write(value);
     }
@@ -173,7 +176,7 @@ impl PPU {
 
     pub fn write_to_data(&mut self, value: u8) {
         let addr = self.ppu_addr.get();
-        
+
         self.increment_vram_addr();
 
         println!("addr: {}", addr);
@@ -254,7 +257,7 @@ impl PPU {
     //
     // Maps into VRAM.
     pub fn mirror_vram_addr(&self, addr: u16) -> u16 {
-        // Maps into 0x2000 -> 0x2fff, in case data is not there
+        // Maps into 0x2000 ~ 0x2fff, in case data is not there
         let mirrored_vram = addr & VRAM_END;
         let vram_index = mirrored_vram - VRAM_START;
         let name_table = vram_index / NAMETABLE_SIZE;

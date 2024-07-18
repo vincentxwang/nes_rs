@@ -27,7 +27,7 @@ impl Frame {
      
         let mut frame = Frame::new();
         let bank = (bank * PATTERN_TABLE_SIZE) as usize;
-     
+    
         let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
      
         for y in 0..=7 {

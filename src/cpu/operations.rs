@@ -115,7 +115,7 @@ impl CPU {
         }
     }
 
-    // Documentation seems to be largely... incorrect?
+    // Most documentation seems to be largely... incorrect?
     // Source: https://forums.nesdev.org/viewtopic.php?t=6597
     pub fn brk(&mut self) {
         // Push address of BRK instruction + 2. We add 1 because we already add 1 right after reading.
@@ -148,7 +148,7 @@ impl CPU {
         }
     }
 
-    // Decrement memory
+    // DECrement memory
     pub fn dec(&mut self, mode: &AddressingMode) {
         let (addr, _) = self.get_operand_address(mode);
         let val = self.mem_read(addr).wrapping_sub(1);
@@ -157,19 +157,19 @@ impl CPU {
         self.update_zero_and_negative_flags(val);
     }
 
-    // Decrement X register
+    // DEcrement X register
     pub fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
         self.update_zero_and_negative_flags(self.register_x)
     }
 
-    // Decrement Y register
+    // DEcrement Y register
     pub fn dey(&mut self) {
         self.register_y = self.register_y.wrapping_sub(1);
         self.update_zero_and_negative_flags(self.register_y)
     }
 
-    // Jump
+    // JuMP
     pub fn jmp(&mut self, mode: &AddressingMode) {
         let mem_address = self.mem_read_u16(self.program_counter);
 
@@ -194,7 +194,7 @@ impl CPU {
         }
     }
 
-    // Jump to subroutine
+    // Jump to SubRoutine
     pub fn jsr(&mut self) {
         self.stack_push_u16(self.program_counter + 2 - 1);
         let target_address = self.mem_read_u16(self.program_counter);
@@ -209,25 +209,25 @@ impl CPU {
         self.mem_write(addr, self.register_x & self.register_a);
     }
 
-    // Store accumulator
+    // STore Accumulator
     pub fn sta(&mut self, mode: &AddressingMode) {
         let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
     }
 
-    // Store X register
+    // STore X register
     pub fn stx(&mut self, mode: &AddressingMode) {
         let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_x);
     }
 
-    // Store Y register
+    // STore Y register
     pub fn sty(&mut self, mode: &AddressingMode) {
         let (addr, _) = self.get_operand_address(mode);
         self.mem_write(addr, self.register_y);
     }
 
-    // Load into accumulator
+    // LoaD into Accumulator
     pub fn lda(&mut self, mode: &AddressingMode) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -239,7 +239,7 @@ impl CPU {
         }
     }
 
-    // Load into X register
+    // LoaD into X register
     pub fn ldx(&mut self, mode: &AddressingMode) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
@@ -251,7 +251,7 @@ impl CPU {
         }
     }
 
-    // Load into Y register
+    // LoaD into Y register
     pub fn ldy(&mut self, mode: &AddressingMode) {
         let (addr, page_cross) = self.get_operand_address(mode);
         let val = self.mem_read(addr);
