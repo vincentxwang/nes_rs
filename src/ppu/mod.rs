@@ -35,6 +35,7 @@ pub struct PPU {
     // $2000 - $2FFF is usually mapped to an internal vRAM
     pub vram: [u8; VRAM_SIZE],
     pub palette_table: [u8; PALETTE_TABLE_SIZE],
+    // Divide by 4 because each OAMByte represents 4 bytes.
     pub oam_data: [u8; OAM_DATA_SIZE],
  
     pub controller: PPUCTRL,
@@ -130,11 +131,11 @@ impl PPU {
             if self.scanline == 241 {
                 self.status.set(PPUSTATUS::VBLANK_STARTED, true);
 
-                println!("SCANLINE 241");
+                // println!("SCANLINE 241");
 
                 if self.controller.contains(PPUCTRL::GENERATE_NMI)  {
                     self.nmi_interrupt = Some(1);
-                    println!("NMI_INTERRUPT SET");
+                    // println!("NMI_INTERRUPT SET");
                 }
             };
 
@@ -183,6 +184,14 @@ impl PPU {
     pub fn write_to_oam_addr(&mut self, value: u8) {
         self.oam_addr = value;
     }
+    
+    // Replace OAM data.
+    pub fn write_oam_dma(&mut self, data: &[u8; 256]) {
+        for x in data.iter() {
+            self.oam_data[self.oam_addr as usize] = *x;
+            self.oam_addr = self.oam_addr.wrapping_add(1);
+        }
+    }
 
     fn increment_vram_addr(&mut self) {
         if self.controller.contains(PPUCTRL::VRAM_ADD_INCREMENT) {
@@ -197,19 +206,18 @@ impl PPU {
 
         self.increment_vram_addr();
 
-        println!("addr: {}", addr);
         match addr {
             CHR_ROM_START..=CHR_ROM_END => {
                 if let Some(chr_ram) = &mut self.chr_ram {
                     chr_ram[addr as usize] = value;
                 } else {
-                    panic!("Trying to write into PPU CHR-ROM space at addr {}", addr);
+                    println!("Ignoring write into PPU CHR-ROM space at addr {}", addr);
                 }
             },
 
             VRAM_START..=VRAM_END => {
                 self.vram[self.mirror_vram_addr(addr) as usize] = value;
-                println!("writing {} to {}", value, self.mirror_vram_addr(addr))
+                // println!("writing {} to {}", value, self.mirror_vram_addr(addr))
             },
             UNUSED_START..=UNUSED_END => panic!("Attempting to write to unused space {}", addr),
             
@@ -293,6 +301,19 @@ impl PPU {
         ]
     }
 
+    pub fn sprite_palette(&self, palette_idx: u8) -> [u8; 4] {
+        // 0x11 is where sprites start.
+        let start = 0x11 + (palette_idx * 4) as usize;
+
+        [
+            // Dummy -- this should never be used.
+            0,
+            self.palette_table[start],
+            self.palette_table[start + 1],
+            self.palette_table[start + 2],
+        ]
+    }
+
     pub fn read_data(&mut self) -> u8 {
         let addr = self.ppu_addr.get();
 
@@ -330,7 +351,7 @@ impl PPU {
     pub fn read_oam_data(&mut self) -> u8 {
         self.oam_data[self.oam_addr as usize]
     }
-    
+
     pub fn read_status(&mut self) -> u8 {
         let data = self.status.bits();
         self.status.set(PPUSTATUS::VBLANK_STARTED, false);

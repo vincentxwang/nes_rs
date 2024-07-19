@@ -12,7 +12,6 @@ use crate::bus::Bus;
 use crate::cpu::opcodes::CPU_OPS_CODES;
 use crate::cpu::addressing::AddressingMode;
 use crate::joypad::JoypadButton;
-use crate::render::constants::*;
 use crate::render::frame::Frame;
 
 pub mod trace;
@@ -115,6 +114,21 @@ impl Mem for CPU {
     }
 }
 
+impl Default for CPU {
+    fn default() -> Self {
+        CPU {
+            register_a: 0,
+            register_x: 0,
+            register_y: 0,
+            bus: Bus::default(Cartridge::default()),
+            program_counter: 0,
+            stack_pointer: STACK_RESET,
+            // Interrupt disable (bit 2) and the unused (bit 5) initialized by default
+            status: CPUFlags::from_bits_truncate(0b100100),
+        }
+    }
+}
+
 impl CPU {
     pub fn new(bus: Bus) -> Self {
         CPU {
@@ -122,19 +136,6 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             bus,
-            program_counter: 0,
-            stack_pointer: STACK_RESET,
-            // Interrupt disable (bit 2) and the unused (bit 5) initialized by default
-            status: CPUFlags::from_bits_truncate(0b100100),
-        }
-    }
-
-    pub fn default() -> Self {
-        CPU {
-            register_a: 0,
-            register_x: 0,
-            register_y: 0,
-            bus: Bus::default(Cartridge::default()),
             program_counter: 0,
             stack_pointer: STACK_RESET,
             // Interrupt disable (bit 2) and the unused (bit 5) initialized by default

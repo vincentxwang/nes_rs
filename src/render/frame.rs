@@ -11,11 +11,11 @@ impl Frame {
  
     pub fn new() -> Self {
         Frame {
-            data: vec![PINK; (NES_PIXEL_WIDTH as usize) * (NES_PIXEL_HEIGHT as usize)],
+            data: vec![PINK; (NES_PIXEL_WIDTH as usize) * (NES_PIXEL_HEIGHT as usize) * 6],
         }
     }
     
-    // Sets the golor of a single pixel defined by (x,y) to rgb values.
+    // Sets the color of a single pixel defined by (x,y) to rgb values.
     pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
         let base = y * (NES_PIXEL_WIDTH as usize) + x;
         self.data[base] = color;
@@ -40,8 +40,8 @@ impl Frame {
                 // If only the bit in the second plane is set to 1: The pixel's color index is 2.
                 // If both bits are set to 1: The pixel's color index is 3.
                 let value = (1 & upper) << 1 | (1 & lower);
-                upper = upper >> 1;
-                lower = lower >> 1;
+                upper >>= 1;
+                lower >>= 1;
                 frame.set_pixel(x, y, SYSTEM_PALETTE[value as usize])
             }
         }
@@ -56,7 +56,7 @@ impl Frame {
         let mut frame = Frame::new();
         let mut tile_y = 0;
         let mut tile_x = 0;
-        let bank = (bank * 0x1000) as usize;
+        let bank = bank * 0x1000;
     
         for tile_n in 0..255 {
             if tile_n != 0 && tile_n % 20 == 0 {
@@ -71,8 +71,8 @@ impl Frame {
 
                 for x in (0..=7).rev() {
                     let value = (1 & upper) << 1 | (1 & lower);
-                    upper = upper >> 1;
-                    lower = lower >> 1;
+                    upper >>= 1;
+                    lower >>= 1;
                     frame.set_pixel(tile_x + x, tile_y + y, SYSTEM_PALETTE[value as usize])
                 }
             }
@@ -80,5 +80,11 @@ impl Frame {
             tile_x += 10;
         }
         frame
+    }
+}
+
+impl Default for Frame {
+    fn default() -> Self {
+        Self::new()
     }
 }

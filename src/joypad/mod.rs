@@ -2,7 +2,6 @@
 //! Reference: https://www.nesdev.org/wiki/Standard_controller
 
 pub mod controller;
-use std::collections::HashMap;
 use macroquad::prelude::*;
 
 bitflags! {

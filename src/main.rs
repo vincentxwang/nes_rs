@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use nes_rs::{bus::Bus, cartridge::Cartridge, cpu::{trace, Mem, CPU}, ppu::PPU, render::{constants::*, frame::Frame}};
+use nes_rs::{bus::Bus, cartridge::Cartridge, cpu::CPU, render::constants::*};
 
 // Pixels are numbered from 0 to (256 * 200 - 256), from left to right, then up to down.
 // Each is identified with an x and y coordinate.
@@ -15,14 +15,10 @@ fn nes_rs() -> Conf {
 #[macroquad::main(nes_rs)]
 async fn main() {
 
-    // let bytes: Vec<u8> = std::fs::read("tests/blarggcpu/official_only.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("tests/blarggppu/vbl_clear_time.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("tests/nestest/nestest.nes").unwrap();
-    // let bytes: Vec<u8> = std::fs::read("tests/blarggppu/vbl_clear_time.nes").unwrap();
-    let bytes: Vec<u8> = std::fs::read("ballooon.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("balloon.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
-    let mut frame = Frame::new();
+    // let mut frame = Frame::new();
     
     let bus = Bus::new(rom);
 
@@ -30,9 +26,9 @@ async fn main() {
 
     cpu.reset();
 
-    let minimum_frame_time = 1. / 60.; // 60 FPS
+    // let minimum_frame_time = 1. / 60.; // 60 FPS
 
-    let frame_time = get_frame_time();
+    // let frame_time = get_frame_time();
 
     // println!("Frame time: {}ms", frame_time * 1000.);
     // if frame_time < minimum_frame_time {
@@ -42,7 +38,7 @@ async fn main() {
     // }
 
     loop {
-        cpu.run_once_with_callback(move |cpu| {
+        cpu.run_once_with_callback(move |_| {
                 // println!("{}", trace::trace(cpu));
         });
 

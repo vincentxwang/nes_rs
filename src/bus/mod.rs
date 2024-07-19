@@ -56,7 +56,7 @@ pub struct Bus {
 
     pub joypad: Joypad,
 
-    dma: DMA,
+    // dma: DMA,
 }
 
 
@@ -74,7 +74,7 @@ impl Bus {
             cycles: 7,
             joypad: Joypad::new(),
 
-            dma: DMA::new(),
+            // dma: DMA::new(),
         }
     }
 
@@ -85,22 +85,34 @@ impl Bus {
 
     pub fn tick(&mut self, cycles: usize) {
         self.ppu.tick(cycles * 3);
-        if self.dma.dma_transfer {
-            // If not synced, wait a cycle
-            if self.dma.dma_is_not_sync {
-                if (self.cycles % 2 == 1) {
-                    self.dma.dma_is_not_sync = false;
-                }
-            } else {
-                if (self.cycles % 2 == 0) {
-                    self.dma.data = self.mem_read((self.dma.page as u16) << 8 | self.dma.addr as u16)
-                } else {
-                    // self.ppu.oam
-                }
-            }
-        } else {
-            self.cycles += cycles;
-        }
+
+        // TODO: implement DMA. for now we just naively write with OAM data
+
+        // if self.dma.dma_transfer {
+        //     // If not synced, wait a cycle
+        //     if self.dma.dma_is_not_sync {
+        //         if self.cycles % 2 == 1 {
+        //             self.dma.dma_is_not_sync = false;
+        //         }
+        //     } else {
+        //         // On even clock cycles, read from CPU
+        //         if self.cycles % 2 == 0 {
+        //             self.dma.data = self.mem_read((self.dma.page as u16) << 8 | self.dma.addr as u16)
+        //         // On odd clock cycles, write to OAM
+        //         } else {
+        //             self.ppu.oam_data[self.dma.addr as usize] = self.dma.data;
+        //             self.dma.addr = self.dma.addr.wrapping_add(1);
+
+        //             // If dma.addr wraps around back to 0x00, we are done
+        //             if self.dma.addr == 0x00 {
+        //                 self.dma.dma_transfer = false;
+        //                 self.dma.dma_is_not_sync = true;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     self.cycles += cycles;
+        // }
    }
 
     pub fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -190,17 +202,23 @@ impl Mem for Bus {
 
             0x2006 => {
                 self.ppu.write_to_ppu_addr(data);
-                println!("mem_write to 0x2006 with {}", data);
+                // println!("mem_write to 0x2006 with {}", data);
             }
             
             0x2007 => {
                 self.ppu.write_to_data(data);
-                println!("mem_write to 0x2007 with {}", data);
+                // println!("mem_write to 0x2007 with {}", data);
             }
             
+            // Lazy DMA. TODO: handle cycle accuracy with this.
             0x4014 => {
-                
-                println!("Ignoring mem_write at 0x4014 (OAM DMA high address)")
+                let mut buffer: [u8; 256] = [0; 256];
+                let hi: u16 = (data as u16) << 8;
+                for i in 0..256u16 {
+                    buffer[i as usize] = self.mem_read(hi + i);
+                }
+
+                self.ppu.write_oam_dma(&buffer);
             }
 
             0x4016 => self.joypad.write(data),

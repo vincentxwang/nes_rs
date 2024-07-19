@@ -39,7 +39,6 @@ impl CPU {
     }
 
     pub fn anc(&mut self, mode: &AddressingMode) {
-        let (addr, page_cross) = self.get_operand_address(mode);
         self.and(mode, false);
         self.status.set(CPUFlags::CARRY, self.status.contains(CPUFlags::NEGATIVE));
     }

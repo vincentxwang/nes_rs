@@ -21,3 +21,11 @@ Cargo.lock
 # NES files
 pacman.nes
 dk.nes
+balloon.nes
+ff.nes
+
+# Unfinished stuff
+
+tests/harte
+tests/blarggppu
+tests/blarggcpu

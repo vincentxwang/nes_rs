@@ -5,9 +5,7 @@
 
 #[cfg(test)]
 mod blarggcpu {
-    use std::fs;
-    use std::io::BufRead;
-
+    
     use nes_rs::cartridge::Cartridge;
     use nes_rs::bus::Bus;
     use nes_rs::cpu::{trace, Mem, CPU};

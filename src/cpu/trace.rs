@@ -227,7 +227,6 @@ mod trace_test {
     use crate::bus::Bus;
     use crate::cartridge::test::create_test_cartridge;
     use crate::cpu::{Mem, CPU};
-    use crate::ppu::PPU;
 
     #[test]
     fn test_format_trace() {
