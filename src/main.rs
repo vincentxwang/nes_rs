@@ -15,7 +15,7 @@ fn nes_rs() -> Conf {
 #[macroquad::main(nes_rs)]
 async fn main() {
 
-    let bytes: Vec<u8> = std::fs::read("balloon.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("pacman.nes").unwrap();
     let rom = Cartridge::new(&bytes).unwrap();
 
     // let mut frame = Frame::new();
